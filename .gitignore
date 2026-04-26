@@ -6,7 +6,6 @@ build/
 dist/
 
 .env
-config/db.php
 
 assets/uploads/*
 !assets/uploads/.gitkeep
@@ -17,5 +16,3 @@ assets/uploads/*
 
 vendor/
 composer.phar
-
-.env
