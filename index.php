@@ -1,6 +1,9 @@
-<?php include 'includes/header.php'; ?>
-<?php include 'includes/navbar.php'; ?>
+<?php
+require_once "config/auth.php";
 
-<h1>Welcome to Poly Marketplace</h1>
+requireLogin();
+?>
 
-<?php include 'includes/footer.php'; ?>
+<h2>Home Page</h2>
+<p>Welcome <?php echo $_SESSION['name']; ?></p>
+<a href="pages/logout.php"><button>Logout</button></a>
