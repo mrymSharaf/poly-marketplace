@@ -4,7 +4,7 @@ session_start();
 // Must login
 function requireLogin() {
     if (!isset($_SESSION['user_id'])) {
-        header("Location: /poly-marketplace/pages/login.php");
+        header("Location: /~u202301956/poly-marketplace/pages/login.php");
         exit;
     }
 }
