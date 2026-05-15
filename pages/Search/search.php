@@ -100,80 +100,94 @@ $pageTitle = 'Search Listings';
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
-
 <script>
-const AJAX_URL = '<?= BASE_URL ?>/ajax/search_listings.php';
+var AJAX_URL = '<?= BASE_URL ?>/ajax/search_listings.php';
 
 function runSearch() {
-    const params = {
-        keyword:   $('#filterKeyword').val().trim(),
-        creator:   $('#filterCreator').val().trim(),
-        startDate: $('#filterStartDate').val(),
-        endDate:   $('#filterEndDate').val(),
-        sortBy:    $('#filterSortBy').val()
-    };
 
-    $('#searchResults').html(
+    var keyword   = document.getElementById('filterKeyword').value.trim();
+    var creator   = document.getElementById('filterCreator').value.trim();
+    var startDate = document.getElementById('filterStartDate').value;
+    var endDate   = document.getElementById('filterEndDate').value;
+    var sortBy    = document.getElementById('filterSortBy').value;
+
+    var queryString = 'keyword='   + encodeURIComponent(keyword)
+                    + '&creator='   + encodeURIComponent(creator)
+                    + '&startDate=' + encodeURIComponent(startDate)
+                    + '&endDate='   + encodeURIComponent(endDate)
+                    + '&sortBy='    + encodeURIComponent(sortBy);
+
+    document.getElementById('searchResults').innerHTML =
         '<div class="col-12 text-center py-5">' +
             '<div class="spinner-border text-primary" role="status" aria-label="Loading"></div>' +
             '<p class="mt-3 text-muted small">Searching…</p>' +
-        '</div>'
-    );
-    $('#resultsLabel').hide();
+        '</div>';
+    document.getElementById('resultsLabel').style.display = 'none';
 
-    $.get(AJAX_URL, params)
-        .done(function (html) {
-            $('#searchResults').html(html);
+    var xhr = new XMLHttpRequest();
 
-            const count = $('#searchResults .listing-card').length;
-            if (count > 0) {
-                $('#resultsLabel')
-                    .text('Showing ' + count + ' result' + (count !== 1 ? 's' : ''))
-                    .show();
+    xhr.onreadystatechange = function () {
+
+        if (xhr.readyState == 4 && xhr.status == 200) {
+            document.getElementById('searchResults').innerHTML = xhr.responseText;
+
+            var cards = document.querySelectorAll('#searchResults .listing-card');
+            if (cards.length > 0) {
+                var label         = document.getElementById('resultsLabel');
+                label.textContent = 'Showing ' + cards.length
+                                + ' result' + (cards.length !== 1 ? 's' : '');
+                label.style.display = 'block';
             }
-        })
-        .fail(function () {
-            $('#searchResults').html(
+
+        } else if (xhr.readyState == 4) {
+            document.getElementById('searchResults').innerHTML =
                 '<div class="col-12">' +
                     '<div class="alert alert-danger">' +
                         '<i class="bi bi-exclamation-circle me-2"></i>' +
-                        'Something went wrong. Please try again.' +
+                        'Something went wrong (HTTP ' + xhr.status + '). Please try again.' +
                     '</div>' +
-                '</div>'
-            );
-        });
+                '</div>';
+        }
+    };
+
+    xhr.open('GET', AJAX_URL + '?' + queryString, true);
+
+    xhr.send();
 }
 
-$(document).ready(function () {
+document.addEventListener('DOMContentLoaded', function () {
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const navKeyword = urlParams.get('keyword');
+    var urlParams  = new URLSearchParams(window.location.search);
+    var navKeyword = urlParams.get('keyword');
     if (navKeyword && navKeyword.trim() !== '') {
-        $('#filterKeyword').val(navKeyword.trim());
+        document.getElementById('filterKeyword').value = navKeyword.trim();
         runSearch();
     }
 
-    $('#btnSearch').on('click', runSearch);
+    document.getElementById('btnSearch').addEventListener('click', runSearch);
 
-    $('#btnClear').on('click', function () {
-        $('#filterKeyword, #filterCreator, #filterStartDate, #filterEndDate').val('');
-        $('#filterSortBy').val('newest');
-        $('#resultsLabel').hide();
-        $('#searchResults').html(
+    document.getElementById('btnClear').addEventListener('click', function () {
+        document.getElementById('filterKeyword').value   = '';
+        document.getElementById('filterCreator').value   = '';
+        document.getElementById('filterStartDate').value = '';
+        document.getElementById('filterEndDate').value   = '';
+        document.getElementById('filterSortBy').value    = 'newest';
+        document.getElementById('resultsLabel').style.display = 'none';
+        document.getElementById('searchResults').innerHTML =
             '<div class="col-12 text-center py-5 text-muted">' +
                 '<i class="bi bi-funnel fs-1 d-block mb-3" style="opacity:.3;"></i>' +
                 '<p class="mb-0">Filters cleared. Start a new search above.</p>' +
-            '</div>'
-        );
+            '</div>';
         history.replaceState(null, '', window.location.pathname);
     });
 
-    $('#filterKeyword, #filterCreator').on('keypress', function (e) {
-        if (e.which === 13) runSearch();
+    document.getElementById('filterKeyword').addEventListener('keypress', function (e) {
+        if (e.keyCode === 13) runSearch();
+    });
+    document.getElementById('filterCreator').addEventListener('keypress', function (e) {
+        if (e.keyCode === 13) runSearch();
     });
 
-});
-</script>
+});</script>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>
