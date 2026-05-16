@@ -31,14 +31,6 @@ $result = mysqli_query($dbc, $sql);
                     </button>
                 </form>
             </div>
-            <div class="col-lg-5">
-                <div class="card bg-light">
-                    <div class="card-body p-4">
-                        <h5 class="fw-semibold mb-3">Latest Items</h5>
-                        <p class="text-muted mb-0">New published listings are shown here first.</p>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 </section>
