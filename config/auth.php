@@ -1,8 +1,9 @@
 <?php
-session_start();
+@session_start();
 
 // Must login
-function requireLogin() {
+function requireLogin()
+{
     if (!isset($_SESSION['user_id'])) {
         header("Location: /~u202301956/poly-marketplace/pages/login.php");
         exit;
@@ -10,16 +11,17 @@ function requireLogin() {
 }
 
 // Single role
-function requireRole($role) {
+function requireRole($role)
+{
     if (!isset($_SESSION['role']) || $_SESSION['role'] !== $role) {
         die("Access denied.");
     }
 }
 
 // Multiple roles
-function requireAnyRole($roles = []) {
+function requireAnyRole($roles = [])
+{
     if (!in_array($_SESSION['role'], $roles)) {
         die("Access denied.");
     }
 }
-?>

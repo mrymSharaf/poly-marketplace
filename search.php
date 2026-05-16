@@ -2,9 +2,11 @@
 session_start();
 include "config/db.php";
 
+mysqli_report(MYSQLI_REPORT_OFF);
+
 $dbc = getDB();
 $keyword = trim($_GET['keyword'] ?? '');
-$categoryID = $_GET['category_id'] ?? 0;
+$categoryID = (int)($_GET['category_id'] ?? 0);
 $message = "";
 $categoryName = "";
 
@@ -22,7 +24,8 @@ if ($categoryID > 0) {
 $listingsList = [];
 
 if ($keyword != '') {
-    $sql = "CALL SearchListings('$keyword')";
+    $safeKeyword = mysqli_real_escape_string($dbc, $keyword);
+    $sql = "CALL SearchListings('$safeKeyword')";
     $result = mysqli_query($dbc, $sql);
 
     if ($result) {
@@ -30,6 +33,42 @@ if ($keyword != '') {
             if ($categoryID == 0 || $row['CategoryName'] == $categoryName) {
                 $listingsList[] = $row;
             }
+        }
+        mysqli_free_result($result);
+    }
+
+    while (mysqli_more_results($dbc) && mysqli_next_result($dbc)) {
+        $extra = mysqli_store_result($dbc);
+        if ($extra) {
+            mysqli_free_result($extra);
+        }
+    }
+
+    if (!$result) {
+        $likeKeyword = "%" . $safeKeyword . "%";
+        $sql = "SELECT l.ListingID, l.Title, l.Description, l.Price, l.ImageURL, l.CreatedAt,
+                       c.CategoryName, u.FullName AS CreatorName, AVG(r.RatingValue) AS AverageRating
+                FROM pm_listings l
+                JOIN pm_categories c ON l.CategoryID = c.CategoryID
+                JOIN pm_users u ON l.UserID = u.UserID
+                LEFT JOIN pm_ratings r ON l.ListingID = r.ListingID
+                WHERE l.Status = 'published'
+                AND (l.Title LIKE '$likeKeyword' OR l.Description LIKE '$likeKeyword')";
+
+        if ($categoryID > 0) {
+            $sql .= " AND l.CategoryID = '$categoryID'";
+        }
+
+        $sql .= " GROUP BY l.ListingID, l.Title, l.Description, l.Price, l.ImageURL, l.CreatedAt, c.CategoryName, u.FullName
+                  ORDER BY l.CreatedAt DESC
+                  LIMIT 30";
+
+        $result = mysqli_query($dbc, $sql);
+        if ($result) {
+            while ($row = mysqli_fetch_assoc($result)) {
+                $listingsList[] = $row;
+            }
+            mysqli_free_result($result);
         }
     }
 } else {
