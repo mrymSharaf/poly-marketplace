@@ -1,6 +1,7 @@
 <?php
 
-function loadEnv($path) {
+function loadEnv($path)
+{
     if (!file_exists($path)) {
         die(".env file not found");
     }
@@ -24,4 +25,3 @@ function loadEnv($path) {
         $_ENV[$name] = $value;
     }
 }
-?>
