@@ -1,13 +1,16 @@
 <?php
-require_once __DIR__ . '/../../config/db.php';
-require_once __DIR__ . '/../../includes/seller_guard.php';
+session_start();
+// Include the database configuration and check authorization using relative paths
+include "../../config/db.php";
+include "../../includes/seller_guard.php";
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+// Redirect if the page was accessed without a POST form submission
+if ($_SERVER['REQUEST_METHOD'] != 'POST') {
     header('Location: my_listings.php');
     exit;
 }
 
-$listingID = trim($_POST['listing_id'] ?? '');
+$listingID = isset($_POST['listing_id']) ? trim($_POST['listing_id']) : '';
 $userID    = $_SESSION['user_id'];
 
 if (empty($listingID)) {
@@ -17,12 +20,13 @@ if (empty($listingID)) {
 
 $dbc = getDB();
 
-// Verify ownership and get file paths for cleanup
-$stmt = $dbc->prepare("SELECT ImageURL, MediaURL FROM pm_listings WHERE ListingID = ? AND UserID = ?");
-$stmt->bind_param('ss', $listingID, $userID);
-$stmt->execute();
-$row = $stmt->get_result()->fetch_assoc();
-$stmt->close();
+// Escape user inputs to protect database structure integrity
+$safeListingID = mysqli_real_escape_string($dbc, $listingID);
+
+// Verify record ownership and extract file paths before running the deletion sequence
+$selectQuery = "SELECT ImageURL, MediaURL FROM pm_listings WHERE ListingID = '$safeListingID' AND UserID = '$userID'";
+$selectResult = mysqli_query($dbc, $selectQuery);
+$row = mysqli_fetch_assoc($selectResult);
 
 if (!$row) {
     mysqli_close($dbc);
@@ -30,23 +34,29 @@ if (!$row) {
     exit;
 }
 
-// Delete from DB
-$stmt = $dbc->prepare("DELETE FROM pm_listings WHERE ListingID = ? AND UserID = ?");
-$stmt->bind_param('ss', $listingID, $userID);
-$stmt->execute();
-$affected = $stmt->affected_rows;
-$stmt->close();
+// Execute the query to delete the listing from the marketplace table
+$deleteQuery = "DELETE FROM pm_listings WHERE ListingID = '$safeListingID' AND UserID = '$userID'";
+$deleteResult = mysqli_query($dbc, $deleteQuery);
+
+// Capture the number of modified rows before terminating the connection handle
+$affectedRows = mysqli_affected_rows($dbc);
+
 mysqli_close($dbc);
 
-if ($affected > 0) {
-    // Remove uploaded files from disk
-    $base = __DIR__ . '/../../';
-    if ($row['ImageURL'] && file_exists($base . $row['ImageURL'])) {
-        unlink($base . $row['ImageURL']);
+// Proceed with file management cleanups only if a database entry was successfully removed
+if ($deleteResult && $affectedRows > 0) {
+
+    // Use local relative paths to delete physical image and media file assets from the disk
+    $basePath = "../../";
+
+    if ($row['ImageURL'] != '' && file_exists($basePath . $row['ImageURL'])) {
+        unlink($basePath . $row['ImageURL']);
     }
-    if ($row['MediaURL'] && file_exists($base . $row['MediaURL'])) {
-        unlink($base . $row['MediaURL']);
+
+    if ($row['MediaURL'] != '' && file_exists($basePath . $row['MediaURL'])) {
+        unlink($basePath . $row['MediaURL']);
     }
+
     header('Location: my_listings.php?success=' . urlencode('Listing deleted successfully.'));
 } else {
     header('Location: my_listings.php?error=' . urlencode('Could not delete listing.'));
