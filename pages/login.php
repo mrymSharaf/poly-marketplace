@@ -59,27 +59,69 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 ?>
+<?php include "../includes/header.php"; ?>
+<?php include "../includes/navbar.php"; ?>
 
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Login</title>
-</head>
-<body>
+<link rel="stylesheet" href="../assets/css/auth.css">
 
-<h2>Login</h2>
+<main class="auth-page">
+    <div class="container">
+        <div class="row justify-content-center align-items-center">
+            <div class="col-12 col-sm-10 col-md-7 col-lg-5">
 
-<?php if ($message != "") echo "<p><b>$message</b></p>"; ?>
+                <div class="card auth-card">
+                    <div class="card-body p-4 p-md-5">
 
-<form method="POST">
+                        <div class="text-center mb-4">
+                            <h2 class="auth-title">Login</h2>
+                            <p class="auth-subtitle">Welcome back to PolyMarketplace!</p>
+                        </div>
 
-    <input type="email" name="email" placeholder="Email" required><br><br>
+                        <?php if ($message != ""): ?>
+                            <div class="alert alert-danger text-center">
+                                <?php echo $message; ?>
+                            </div>
+                        <?php endif; ?>
 
-    <input type="password" name="password" placeholder="Password" required><br><br>
+                        <form method="POST">
 
-    <button type="submit">Login</button>
+                            <div class="mb-3">
+                                <label class="form-label">Email Address</label>
+                                <input 
+                                    type="email" 
+                                    name="email" 
+                                    class="form-control" 
+                                    placeholder="Enter your email" 
+                                    required>
+                            </div>
 
-</form>
+                            <div class="mb-4">
+                                <label class="form-label">Password</label>
+                                <input 
+                                    type="password" 
+                                    name="password" 
+                                    class="form-control" 
+                                    placeholder="Enter your password" 
+                                    required>
+                            </div>
 
-</body>
-</html>
+                            <button type="submit" class="btn btn-success w-100 py-2">
+                                Login
+                            </button>
+
+                        </form>
+
+                        <p class="text-center mt-4 mb-0">
+                            Don’t have an account?
+                            <a href="register.php" class="auth-link">Register here</a>
+                        </p>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</main>
+
+<?php include "../includes/footer.php"; ?>
