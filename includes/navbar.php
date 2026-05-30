@@ -114,16 +114,21 @@ mysqli_close($dbc);
                             <?php echo htmlspecialchars($_SESSION['name'] ?? 'Account'); ?>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <?php if (($_SESSION['role'] ?? '') == 'creator'): ?>
-                                <li>
-                                    <a class="dropdown-item" href="<?php echo $root; ?>/pages/creator/dashboard.php">
-                                        <i class="bi bi-speedometer2 me-2"></i>Dashboard
-                                    </a>
-                                </li>
-                                <li>
-                                    <hr class="dropdown-divider">
-                                </li>
-                            <?php endif; ?>
+                                <?php if (($_SESSION['role'] ?? '') == 'creator'): ?>
+                                    <li>
+                                        <a class="dropdown-item" href="<?php echo $root; ?>/pages/creator/dashboard.php">
+                                            <i class="bi bi-speedometer2 me-2"></i>Creator Dashboard
+                                        </a>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                <?php elseif (($_SESSION['role'] ?? '') == 'admin'): ?>
+                                    <li>
+                                        <a class="dropdown-item" href="<?php echo $root; ?>/pages/admin/dashboard.php">
+                                            <i class="bi bi-speedometer2 me-2"></i>Admin Dashboard
+                                        </a>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                <?php endif; ?>
                             <li>
                                 <a class="dropdown-item text-danger" href="<?php echo $root; ?>/pages/logout.php">
                                     <i class="bi bi-box-arrow-right me-2"></i>Logout
