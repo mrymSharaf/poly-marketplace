@@ -3,26 +3,28 @@ require_once 'admin_guard.php';
 require_once '../../config/db.php';
 
 $dbc = getDB();
-$popularResult = null;
+$popularResult    = null;
 $userListingsResult = null;
-$popularMessage = '';
-$userMessage = '';
+$popularMessage   = '';
+$userMessage      = '';
 $popularStartDate = '';
-$popularEndDate = '';
+$popularEndDate   = '';
 $selectedUserName = '';
 
-// Report 1: Most popular content within date range
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['popular_report'])) {
     $popularStartDate = $_POST['start_date'] ?? '';
-    $popularEndDate = $_POST['end_date'] ?? '';
+    $popularEndDate   = $_POST['end_date']   ?? '';
     if ($popularStartDate && $popularEndDate) {
-        $sql = "SELECT l.ListingID, l.Title, l.Price, l.Status, COUNT(r.RatingID) AS ratingCount,
-                       AVG(r.RatingValue) AS avgRating, u.FullName AS CreatorName
+        $sql = "SELECT l.ListingID, l.Title, l.Price, l.Status,
+                       COUNT(r.RatingID) AS ratingCount,
+                       AVG(r.RatingValue) AS avgRating,
+                       u.FullName AS CreatorName
                 FROM pm_listings l
                 JOIN pm_users u ON l.UserID = u.UserID
                 LEFT JOIN pm_ratings r ON l.ListingID = r.ListingID
-                WHERE r.CreatedAt BETWEEN '$popularStartDate' AND '$popularEndDate' OR r.CreatedAt IS NULL
+                WHERE r.CreatedAt BETWEEN '$popularStartDate' AND '$popularEndDate'
                 GROUP BY l.ListingID
+                HAVING ratingCount > 0
                 ORDER BY ratingCount DESC, avgRating DESC
                 LIMIT 10";
         $popularResult = mysqli_query($dbc, $sql);
@@ -36,19 +38,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['popular_report'])) {
     }
 }
 
-// Report 2: Content created by a specific user
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['user_report'])) {
     $userID = (int)$_POST['user_id'];
     if ($userID > 0) {
-        $userQuery = mysqli_query($dbc, "SELECT FullName FROM pm_users WHERE UserID = $userID");
-        if ($userRow = mysqli_fetch_assoc($userQuery)) {
-            $selectedUserName = $userRow['FullName'];
-        }
+        $uq = mysqli_query($dbc, "SELECT FullName FROM pm_users WHERE UserID = $userID");
+        if ($uRow = mysqli_fetch_assoc($uq)) $selectedUserName = $uRow['FullName'];
         $sql = "SELECT l.ListingID, l.Title, l.Price, l.Status, l.CreatedAt, c.CategoryName
                 FROM pm_listings l
                 JOIN pm_categories c ON l.CategoryID = c.CategoryID
-                WHERE l.UserID = $userID
-                ORDER BY l.CreatedAt DESC";
+                WHERE l.UserID = $userID ORDER BY l.CreatedAt DESC";
         $userListingsResult = mysqli_query($dbc, $sql);
         if (!$userListingsResult) {
             $userMessage = "Query error: " . mysqli_error($dbc);
@@ -66,173 +64,184 @@ $allUsers = mysqli_query($dbc, "SELECT UserID, FullName, Role FROM pm_users ORDE
 <?php include '../../includes/header.php'; ?>
 <?php include '../../includes/navbar.php'; ?>
 
-<style>
-    @media print {
-        .no-print, .btn, .card-header .btn, .navbar, .footer, .alert, .table a {
-            display: none !important;
-        }
-        .card, .card-body { border: none; padding: 0; margin: 0; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ddd; padding: 8px; }
-        .report-title { font-size: 18pt; margin-bottom: 10px; }
-        .report-context { font-size: 12pt; margin-bottom: 20px; color: #555; }
-    }
-</style>
+<div class="page-header pb-3">
+    <div class="container">
+        <h2 class="fw-bold mb-1"><i class="bi bi-bar-chart-line me-2"></i>Reports</h2>
+        <p class="mb-2 opacity-75 small">Generate analytics and export data</p>
+        <div class="d-flex gap-2 flex-wrap pt-1">
+            <a href="dashboard.php"       class="btn btn-sm btn-outline-light rounded-pill"><i class="bi bi-arrow-left me-1"></i>Dashboard</a>
+            <a href="manage_users.php"    class="btn btn-sm btn-outline-light rounded-pill">Users</a>
+            <a href="manage_listings.php" class="btn btn-sm btn-outline-light rounded-pill">Listings</a>
+            <a href="manage_comments.php" class="btn btn-sm btn-outline-light rounded-pill">Comments</a>
+        </div>
+    </div>
+</div>
 
-<div class="container-fluid mt-4">
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-body">
-                    <h2 class="card-title text-center mb-4">Admin Reports</h2>
+<div class="container page-content pb-5">
 
-                    <div class="row">
-                        <!-- Report 1: Most popular content -->
-                        <div class="col-md-6 mb-4">
-                            <div class="card h-100">
-                                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                                    <h5 class="mb-0">Most Popular Content (by ratings)</h5>
-                                    <button class="btn btn-sm btn-light no-print" onclick="printReport('popularReport', 'Most Popular Content', 'Date range: <?php echo $popularStartDate ?: '—'; ?> to <?php echo $popularEndDate ?: '—'; ?>')">Print Report</button>
-                                </div>
-                                <div class="card-body">
-                                    <form method="post" class="row g-2 mb-3 no-print">
-                                        <div class="col-5">
-                                            <label>Start Date</label>
-                                            <input type="date" name="start_date" class="form-control" value="<?php echo $popularStartDate; ?>" required>
-                                        </div>
-                                        <div class="col-5">
-                                            <label>End Date</label>
-                                            <input type="date" name="end_date" class="form-control" value="<?php echo $popularEndDate; ?>" required>
-                                        </div>
-                                        <div class="col-2 align-self-end">
-                                            <button type="submit" name="popular_report" class="btn btn-primary w-100">Generate</button>
-                                        </div>
-                                    </form>
+    <div class="row g-4">
 
-                                    <?php if ($popularMessage): ?>
-                                        <div class="alert alert-info"><?php echo $popularMessage; ?></div>
-                                    <?php endif; ?>
-
-                                    <div id="popularReport">
-                                        <?php if ($popularResult && mysqli_num_rows($popularResult) > 0): ?>
-                                            <div class="table-responsive">
-                                                <table class="table table-sm table-bordered">
-                                                    <thead>
-                                                        <tr><th>Title</th><th>Creator</th><th>Ratings</th><th>Avg Rating</th></tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        <?php while ($row = mysqli_fetch_assoc($popularResult)): ?>
-                                                            <tr>
-                                                                <td><?php echo htmlspecialchars($row['Title']); ?></td>
-                                                                <td><?php echo htmlspecialchars($row['CreatorName']); ?></td>
-                                                                <td><?php echo $row['ratingCount']; ?></td>
-                                                                <td><?php echo round($row['avgRating'], 1) ?: 'N/A'; ?></td>
-                                                            </tr>
-                                                        <?php endwhile; ?>
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            </div>
+        <!-- Report 1 -->
+        <div class="col-lg-6">
+            <div class="card pm-table-card h-100">
+                <div class="card-header bg-white border-0 pt-4 pb-2 px-4 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold text-navy mb-0">
+                        <i class="bi bi-trophy me-2" style="color:var(--pm-orange);"></i>Most Popular by Date Range
+                    </h5>
+                    <button class="btn btn-sm btn-outline-navy rounded-pill no-print"
+                            onclick="printReport('popularReport','Most Popular Content','Date: <?= $popularStartDate ?: '—' ?> to <?= $popularEndDate ?: '—' ?>')">
+                        <i class="bi bi-printer me-1"></i>Print
+                    </button>
+                </div>
+                <div class="card-body px-4">
+                    <form method="post" class="row g-2 mb-3 no-print">
+                        <div class="col-5">
+                            <label class="form-label small fw-semibold">Start Date</label>
+                            <input type="date" name="start_date" class="form-control form-control-sm"
+                                   value="<?= $popularStartDate ?>" required>
                         </div>
-
-                        <!-- Report 2: Content by user -->
-                        <div class="col-md-6 mb-4">
-                            <div class="card h-100">
-                                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                                    <h5 class="mb-0">Content Created by User</h5>
-                                    <button class="btn btn-sm btn-light no-print" onclick="printReport('userReport', 'Content Created by User', 'User: <?php echo htmlspecialchars($selectedUserName ?: '—'); ?>')">Print Report</button>
-                                </div>
-                                <div class="card-body">
-                                    <form method="post" class="row g-2 mb-3 no-print">
-                                        <div class="col-8">
-                                            <label>Select User</label>
-                                            <select name="user_id" class="form-select" required>
-                                                <option value="">-- Choose a user --</option>
-                                                <?php while ($u = mysqli_fetch_assoc($allUsers)): ?>
-                                                    <option value="<?php echo $u['UserID']; ?>" <?php echo ($selectedUserName && $u['FullName'] == $selectedUserName) ? 'selected' : ''; ?>><?php echo htmlspecialchars($u['FullName']) . " (" . $u['Role'] . ")"; ?></option>
-                                                <?php endwhile; ?>
-                                            </select>
-                                        </div>
-                                        <div class="col-4 align-self-end">
-                                            <button type="submit" name="user_report" class="btn btn-success w-100">Show Listings</button>
-                                        </div>
-                                    </form>
-
-                                    <?php if ($userMessage): ?>
-                                        <div class="alert alert-info"><?php echo $userMessage; ?></div>
-                                    <?php endif; ?>
-
-                                    <div id="userReport">
-                                        <?php if ($userListingsResult && mysqli_num_rows($userListingsResult) > 0): ?>
-                                            <div class="table-responsive">
-                                                <table class="table table-sm table-bordered">
-                                                    <thead>
-                                                        <tr>
-                                                            <th>Title</th>
-                                                            <th>Category</th>
-                                                            <th>Price</th>
-                                                            <th>Status</th>
-                                                            <th>Date</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        <?php while ($row = mysqli_fetch_assoc($userListingsResult)): ?>
-                                                            <tr>
-                                                                <td><?php echo htmlspecialchars($row['Title']); ?></td>
-                                                                <td><?php echo htmlspecialchars($row['CategoryName']); ?></td>
-                                                                <td><?php echo number_format($row['Price'], 3); ?> BHD</td>
-                                                                <td><?php echo htmlspecialchars($row['Status']); ?></td>
-                                                                <td><?php echo date('d M Y', strtotime($row['CreatedAt'])); ?></td>
-                                                            </tr>
-                                                        <?php endwhile; ?>
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            </div>
+                        <div class="col-5">
+                            <label class="form-label small fw-semibold">End Date</label>
+                            <input type="date" name="end_date" class="form-control form-control-sm"
+                                   value="<?= $popularEndDate ?>" required>
                         </div>
-                    </div>
+                        <div class="col-2 align-self-end">
+                            <button type="submit" name="popular_report" class="btn btn-navy btn-sm w-100">Go</button>
+                        </div>
+                    </form>
 
-                    <div class="mt-3 text-center no-print">
-                        <a href="dashboard.php" class="btn btn-secondary">Back to Dashboard</a>
+                    <?php if ($popularMessage): ?>
+                        <div class="alert alert-info border-0 rounded-3 small"><?= htmlspecialchars($popularMessage) ?></div>
+                    <?php endif; ?>
+
+                    <div id="popularReport">
+                        <?php if ($popularResult && mysqli_num_rows($popularResult) > 0): ?>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Title</th>
+                                            <th>Creator</th>
+                                            <th>Ratings</th>
+                                            <th>Avg</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php $rank = 1; while ($row = mysqli_fetch_assoc($popularResult)): ?>
+                                            <tr>
+                                                <td class="text-muted small"><?= $rank++ ?></td>
+                                                <td class="fw-semibold small"><?= htmlspecialchars($row['Title']) ?></td>
+                                                <td class="text-muted small"><?= htmlspecialchars($row['CreatorName']) ?></td>
+                                                <td><?= $row['ratingCount'] ?></td>
+                                                <td>
+                                                    <span class="fw-semibold" style="color:var(--pm-orange);">
+                                                        <?= round($row['avgRating'], 1) ?>★
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        <?php endwhile; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
         </div>
+
+        <!-- Report 2 -->
+        <div class="col-lg-6">
+            <div class="card pm-table-card h-100">
+                <div class="card-header bg-white border-0 pt-4 pb-2 px-4 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold text-navy mb-0">
+                        <i class="bi bi-person-lines-fill me-2" style="color:var(--pm-cyan);"></i>Content by User
+                    </h5>
+                    <button class="btn btn-sm btn-outline-navy rounded-pill no-print"
+                            onclick="printReport('userReport','Content by User','User: <?= htmlspecialchars($selectedUserName ?: '—') ?>')">
+                        <i class="bi bi-printer me-1"></i>Print
+                    </button>
+                </div>
+                <div class="card-body px-4">
+                    <form method="post" class="row g-2 mb-3 no-print">
+                        <div class="col-8">
+                            <label class="form-label small fw-semibold">Select User</label>
+                            <select name="user_id" class="form-select form-select-sm" required>
+                                <option value="">— Choose a user —</option>
+                                <?php while ($u = mysqli_fetch_assoc($allUsers)): ?>
+                                    <option value="<?= $u['UserID'] ?>"
+                                        <?= ($selectedUserName && $u['FullName'] == $selectedUserName) ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($u['FullName']) ?> (<?= $u['Role'] ?>)
+                                    </option>
+                                <?php endwhile; ?>
+                            </select>
+                        </div>
+                        <div class="col-4 align-self-end">
+                            <button type="submit" name="user_report" class="btn btn-navy btn-sm w-100">Show</button>
+                        </div>
+                    </form>
+
+                    <?php if ($userMessage): ?>
+                        <div class="alert alert-info border-0 rounded-3 small"><?= htmlspecialchars($userMessage) ?></div>
+                    <?php endif; ?>
+
+                    <div id="userReport">
+                        <?php if ($userListingsResult && mysqli_num_rows($userListingsResult) > 0): ?>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Title</th>
+                                            <th>Category</th>
+                                            <th>Price</th>
+                                            <th>Status</th>
+                                            <th>Date</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php while ($row = mysqli_fetch_assoc($userListingsResult)): ?>
+                                            <tr>
+                                                <td class="fw-semibold small"><?= htmlspecialchars($row['Title']) ?></td>
+                                                <td><span class="category-badge"><?= htmlspecialchars($row['CategoryName']) ?></span></td>
+                                                <td class="text-navy fw-semibold small"><?= number_format($row['Price'], 3) ?> BHD</td>
+                                                <td>
+                                                    <span class="badge rounded-pill <?= $row['Status'] === 'published' ? 'bg-success' : 'bg-secondary' ?>">
+                                                        <?= ucfirst($row['Status']) ?>
+                                                    </span>
+                                                </td>
+                                                <td class="text-muted small"><?= date('d M Y', strtotime($row['CreatedAt'])) ?></td>
+                                            </tr>
+                                        <?php endwhile; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 
 <script>
 function printReport(reportId, title, context) {
-    var content = document.getElementById(reportId).cloneNode(true);
-    var links = content.querySelectorAll('a');
-    links.forEach(function(link) {
-        var text = link.innerText;
-        var span = document.createElement('span');
-        span.innerText = text;
-        link.parentNode.replaceChild(span, link);
+    const content = document.getElementById(reportId).cloneNode(true);
+    content.querySelectorAll('a').forEach(a => {
+        const span = document.createElement('span');
+        span.textContent = a.textContent;
+        a.replaceWith(span);
     });
-    var printWindow = window.open('', '_blank');
-    printWindow.document.write('<html><head><title>' + title + '</title>');
-    printWindow.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">');
-    printWindow.document.write('<style>body { padding: 20px; } table { width: 100%; } .report-title { font-size: 20pt; font-weight: bold; margin-bottom: 10px; } .report-context { font-size: 12pt; margin-bottom: 20px; color: #555; }</style>');
-    printWindow.document.write('</head><body>');
-    printWindow.document.write('<div class="report-title">' + title + '</div>');
-    printWindow.document.write('<div class="report-context">' + context + '</div>');
-    var table = content.querySelector('table');
-    if (table) {
-        printWindow.document.write(table.outerHTML);
-    } else {
-        printWindow.document.write('<p>No data available for this report.</p>');
-    }
-    printWindow.document.write('</body></html>');
-    printWindow.document.close();
-    printWindow.print();
+    const w = window.open('', '_blank');
+    w.document.write(`<html><head><title>${title}</title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+        <style>body{padding:24px} h2{margin-bottom:6px} .sub{color:#666;margin-bottom:20px;font-size:.9rem}</style>
+        </head><body>
+        <h2>${title}</h2><div class="sub">${context}</div>
+        ${content.querySelector('table') ? content.querySelector('table').outerHTML : '<p>No data.</p>'}
+        </body></html>`);
+    w.document.close();
+    w.print();
 }
 </script>
 

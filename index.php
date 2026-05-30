@@ -2,13 +2,33 @@
 session_start();
 include "config/db.php";
 
-
 $dbc = getDB();
 
-$sql = "SELECT l.ListingID, l.Title, l.Price, l.ImageURL, l.CreatedAt, c.CategoryName
+// Categories for quick-filter pills
+$catResult = mysqli_query($dbc, "SELECT CategoryID, CategoryName FROM pm_categories ORDER BY CategoryName");
+$categories = [];
+while ($cat = mysqli_fetch_assoc($catResult)) {
+    $categories[] = $cat;
+}
+
+// Live stats for hero
+$statsResult = mysqli_query($dbc, "SELECT
+    (SELECT COUNT(*) FROM pm_listings WHERE Status = 'published') AS totalListings,
+    (SELECT COUNT(DISTINCT CategoryID) FROM pm_listings WHERE Status = 'published') AS totalCategories,
+    (SELECT COUNT(*) FROM pm_users WHERE Role = 'creator') AS totalCreators");
+$stats = mysqli_fetch_assoc($statsResult);
+
+// Latest published listings with creator + avg rating
+$sql = "SELECT l.ListingID, l.Title, l.Description, l.Price, l.ImageURL, l.CreatedAt,
+               c.CategoryName, u.FullName AS CreatorName,
+               COALESCE(AVG(r.RatingValue), 0) AS AverageRating,
+               COUNT(r.RatingID) AS RatingCount
         FROM pm_listings l
         JOIN pm_categories c ON l.CategoryID = c.CategoryID
+        JOIN pm_users u ON l.UserID = u.UserID
+        LEFT JOIN pm_ratings r ON l.ListingID = r.ListingID
         WHERE l.Status = 'published'
+        GROUP BY l.ListingID, l.Title, l.Description, l.Price, l.ImageURL, l.CreatedAt, c.CategoryName, u.FullName
         ORDER BY l.CreatedAt DESC
         LIMIT 6";
 $result = mysqli_query($dbc, $sql);
@@ -17,71 +37,147 @@ $result = mysqli_query($dbc, $sql);
 <?php include "includes/header.php"; ?>
 <?php include "includes/navbar.php"; ?>
 
-<section class="py-5 bg-white border-bottom">
-    <div class="container py-4">
-        <div class="row align-items-center g-4">
-            <div class="col-lg-7">
-                <h1 class="display-5 fw-bold text-dark mb-3">Welcome to PolyMarketplace</h1>
-                <p class="lead text-muted mb-4">Browse items posted by students and creators.</p>
+<!-- ── Hero ── -->
+<section class="hero-section">
+    <div class="container position-relative">
+        <div class="row justify-content-center text-center">
+            <div class="col-lg-7 col-md-10">
 
-                <form class="d-flex flex-column flex-sm-row gap-2" method="GET" action="search.php">
-                    <input type="search" name="keyword" class="form-control form-control-lg" placeholder="Search for listings">
-                    <button class="btn btn-success btn-lg px-4" type="submit">
-                        Search
-                    </button>
-                </form>
-            </div>
-            <div class="col-lg-5">
-                <div class="card bg-light">
-                    <div class="card-body p-4">
-                        <h5 class="fw-semibold mb-3">Latest Items</h5>
-                        <p class="text-muted mb-0">New published listings are shown here first.</p>
+                <p class="hero-eyebrow mb-2">
+                    <i class="bi bi-shop me-1"></i>Bahrain Polytechnic Student Market
+                </p>
+                <h1 class="hero-title mb-3">Find, Buy &amp; Sell<br>on Campus</h1>
+                <p class="hero-subtitle mb-4">
+                    Browse listings posted by students and creators — from handmade crafts to tech gadgets.
+                </p>
+
+                <div class="d-flex justify-content-center align-items-center gap-4 flex-wrap mt-2">
+                    <div class="text-center">
+                        <div class="stat-number"><?= (int)($stats['totalListings'] ?? 0) ?>+</div>
+                        <div class="stat-label">Active Listings</div>
+                    </div>
+                    <div class="stat-divider d-none d-sm-block"></div>
+                    <div class="text-center">
+                        <div class="stat-number"><?= (int)($stats['totalCategories'] ?? 0) ?>+</div>
+                        <div class="stat-label">Categories</div>
+                    </div>
+                    <div class="stat-divider d-none d-sm-block"></div>
+                    <div class="text-center">
+                        <div class="stat-number"><?= (int)($stats['totalCreators'] ?? 0) ?>+</div>
+                        <div class="stat-label">Creators</div>
                     </div>
                 </div>
+
             </div>
         </div>
     </div>
 </section>
 
+<!-- ── Category pills ── -->
+<div class="category-bar bg-white">
+    <div class="container">
+        <div class="d-flex flex-wrap gap-2 py-3 align-items-center">
+            <span class="text-muted small fw-semibold me-1">Browse by:</span>
+            <a href="search.php" class="btn category-pill btn-navy">
+                <i class="bi bi-grid me-1"></i>All
+            </a>
+            <?php foreach ($categories as $cat): ?>
+                <a href="search.php?category_id=<?= (int)$cat['CategoryID'] ?>"
+                   class="btn category-pill btn-outline-navy">
+                    <?= htmlspecialchars($cat['CategoryName']) ?>
+                </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</div>
+
+<!-- ── Latest listings ── -->
 <main class="container py-5">
+
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="h4 fw-bold mb-0">Latest 6 Listings</h2>
-        <a href="search.php" class="btn btn-outline-primary btn-sm">Browse All</a>
+        <div>
+            <h2 class="h4 fw-bold mb-0 text-navy">Latest Listings</h2>
+            <p class="text-muted small mb-0 mt-1">Freshest items from our creators</p>
+        </div>
+        <a href="search.php" class="btn btn-outline-navy btn-sm rounded-pill px-4">
+            Browse All <i class="bi bi-arrow-right ms-1"></i>
+        </a>
     </div>
 
-    <?php if (mysqli_num_rows($result) == 0): ?>
-        <div class="alert alert-info">No listings available yet.</div>
+    <?php if (!$result || mysqli_num_rows($result) == 0): ?>
+        <div class="text-center py-5">
+            <i class="bi bi-box-seam display-1 icon-empty-state"></i>
+            <p class="text-muted mt-3 mb-0">No listings yet — check back soon!</p>
+        </div>
     <?php else: ?>
         <div class="row g-4">
-            <?php while ($row = mysqli_fetch_assoc($result)): ?>
+            <?php while ($row = mysqli_fetch_assoc($result)):
+                $rating = (int) round((float)$row['AverageRating']);
+                $desc   = htmlspecialchars($row['Description'] ?? '');
+                if (mb_strlen($desc) > 95) {
+                    $desc = mb_substr($desc, 0, 95) . '…';
+                }
+            ?>
                 <div class="col-sm-6 col-lg-4">
-                    <div class="card h-100">
+                    <div class="card listing-card h-100">
 
-                        <?php if ($row['ImageURL'] != ''): ?>
-                            <img src="<?php echo htmlspecialchars($row['ImageURL']); ?>"
-                                class="card-img-top"
-                                style="height:210px; object-fit:cover;"
-                                alt="<?php echo htmlspecialchars($row['Title']); ?>">
+                        <?php if (!empty($row['ImageURL'])): ?>
+                            <div class="listing-img-wrap">
+                                <img src="<?= htmlspecialchars($row['ImageURL']) ?>"
+                                     class="listing-img w-100 h-100 object-fit-cover"
+                                     alt="<?= htmlspecialchars($row['Title']) ?>">
+                            </div>
                         <?php else: ?>
-                            <div class="bg-light d-flex align-items-center justify-content-center" style="height:210px;">
-                                <span class="text-muted">No Image</span>
+                            <div class="card-img-placeholder">
+                                <i class="bi bi-image fs-1 text-secondary opacity-50"></i>
                             </div>
                         <?php endif; ?>
 
-                        <div class="card-body d-flex flex-column">
-                            <span class="badge bg-primary align-self-start mb-2"><?php echo htmlspecialchars($row['CategoryName']); ?></span>
-                            <h5 class="card-title"><?php echo htmlspecialchars($row['Title']); ?></h5>
-                            <p class="fw-bold text-primary mb-3"><?php echo number_format($row['Price'], 3); ?> BHD</p>
+                        <div class="card-body d-flex flex-column p-3">
 
-                            <a href="details.php?id=<?php echo $row['ListingID']; ?>" class="btn btn-success mt-auto">
-                                View Details
-                            </a>
+                            <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
+                                <span class="category-badge">
+                                    <?= htmlspecialchars($row['CategoryName']) ?>
+                                </span>
+                                <span class="creator-chip" title="<?= htmlspecialchars($row['CreatorName']) ?>">
+                                    <i class="bi bi-person-fill me-1"></i><?= htmlspecialchars($row['CreatorName']) ?>
+                                </span>
+                            </div>
+
+                            <h5 class="card-listing-title fw-semibold mb-1">
+                                <?= htmlspecialchars($row['Title']) ?>
+                            </h5>
+
+                            <p class="text-muted small lh-base flex-grow-1 mb-2">
+                                <?= $desc ?>
+                            </p>
+
+                            <div class="mb-2">
+                                <?php for ($i = 1; $i <= 5; $i++): ?>
+                                    <i class="bi bi-star<?= $i <= $rating ? '-fill star-icon star-filled' : ' star-icon star-empty' ?>"></i>
+                                <?php endfor; ?>
+                                <?php if ($row['RatingCount'] > 0): ?>
+                                    <span class="small text-muted ms-1">(<?= (int)$row['RatingCount'] ?>)</span>
+                                <?php endif; ?>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center pt-2 border-top mt-auto">
+                                <span class="price-tag">
+                                    <?= number_format($row['Price'], 3) ?>
+                                    <span class="small text-muted fw-medium">BHD</span>
+                                </span>
+                                <a href="details.php?id=<?= (int)$row['ListingID'] ?>" class="btn-view">
+                                    View <i class="bi bi-arrow-right"></i>
+                                </a>
+                            </div>
+
                         </div>
                     </div>
                 </div>
             <?php endwhile; ?>
         </div>
     <?php endif; ?>
+
 </main>
 
 <?php include "includes/footer.php"; ?>

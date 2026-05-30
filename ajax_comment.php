@@ -54,13 +54,17 @@ $safeName = htmlspecialchars($fullName);
 $safeContent = nl2br(htmlspecialchars($content));
 $safeDate = date('d M Y H:i');
 
-$html = '<div class="card mb-3">
-            <div class="card-body">
-                <div class="d-flex justify-content-between gap-3 mb-2">
-                    <strong>' . $safeName . '</strong>
-                    <small class="text-muted">' . $safeDate . '</small>
+$initial = strtoupper(substr($fullName, 0, 1));
+$html = '<div class="card border-0 shadow-sm rounded-3 mb-3">
+            <div class="card-body p-3">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <div class="avatar-circle">' . htmlspecialchars($initial) . '</div>
+                    <div>
+                        <div class="fw-semibold small text-navy">' . $safeName . '</div>
+                        <div class="text-muted" style="font-size:.72rem;">' . $safeDate . '</div>
+                    </div>
                 </div>
-                <p class="mb-0">' . $safeContent . '</p>
+                <p class="mb-0 small text-muted lh-base">' . $safeContent . '</p>
             </div>
         </div>';
 

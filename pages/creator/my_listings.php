@@ -70,13 +70,13 @@ function pageLink($p, $filter)
             <h2 class="mb-1"><i class="bi bi-list-ul me-2"></i>My Listings</h2>
             <p class="mb-0" style="opacity:.75;"><?php echo $totalRecords; ?> listing<?php echo ($totalRecords != 1) ? 's' : ''; ?></p>
         </div>
-        <a href="create_listing.php" class="btn btn-accent btn-lg">
+        <a href="create_listing.php" class="btn btn-navy btn-lg">
             <i class="bi bi-plus-circle me-2"></i>Create New
         </a>
     </div>
 </div>
 
-<div class="container pb-5">
+<div class="container page-content pb-5">
 
     <?php if ($successMsg != ''): ?>
         <div class="alert alert-success alert-dismissible fade show">
@@ -93,9 +93,9 @@ function pageLink($p, $filter)
     <?php endif; ?>
 
     <div class="d-flex gap-2 mb-4 flex-wrap">
-        <a href="my_listings.php" class="btn <?php echo ($filter == 'all') ? 'btn-accent' : 'btn-outline-secondary'; ?>">All</a>
-        <a href="?filter=published" class="btn <?php echo ($filter == 'published') ? 'btn-accent' : 'btn-outline-secondary'; ?>">Published</a>
-        <a href="?filter=draft" class="btn <?php echo ($filter == 'draft') ? 'btn-accent' : 'btn-outline-secondary'; ?>">Drafts</a>
+        <a href="my_listings.php" class="btn <?php echo ($filter == 'all') ? 'btn-navy' : 'btn-outline-navy'; ?>">All</a>
+        <a href="?filter=published" class="btn <?php echo ($filter == 'published') ? 'btn-navy' : 'btn-outline-navy'; ?>">Published</a>
+        <a href="?filter=draft" class="btn <?php echo ($filter == 'draft') ? 'btn-navy' : 'btn-outline-navy'; ?>">Drafts</a>
     </div>
 
     <div class="card card-pm">
