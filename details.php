@@ -37,7 +37,7 @@ $commentResult = mysqli_stmt_get_result($commentStmt);
         <i class="bi bi-exclamation-circle display-1 icon-empty-state"></i>
         <h3 class="mt-3 text-navy fw-bold">Listing Not Found</h3>
         <p class="text-muted">This listing may have been removed or is no longer available.</p>
-        <a href="search.php" class="btn btn-navy rounded-pill px-4 mt-2">
+        <a href="index.php" class="btn btn-navy rounded-pill px-4 mt-2">
             <i class="bi bi-arrow-left me-2"></i>Browse Listings
         </a>
     </div>
@@ -55,9 +55,6 @@ $commentResult = mysqli_stmt_get_result($commentStmt);
             <ol class="breadcrumb mb-0">
                 <li class="breadcrumb-item">
                     <a href="index.php" class="text-white-50 text-decoration-none">Home</a>
-                </li>
-                <li class="breadcrumb-item">
-                    <a href="search.php" class="text-white-50 text-decoration-none">Browse</a>
                 </li>
                 <li class="breadcrumb-item active text-white">
                     <?= htmlspecialchars($listing['CategoryName']) ?>

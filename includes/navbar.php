@@ -13,32 +13,6 @@ $userInitial = strtoupper(substr($_SESSION['name'] ?? 'U', 0, 1));
 ?>
 
 <style>
-    /* Search pill */
-    .navbar-search-input {
-        background: rgba(255,255,255,.12) !important;
-        border: 1.5px solid rgba(255,255,255,.2) !important;
-        border-right: none !important;
-        color: #fff !important;
-        border-radius: 50px 0 0 50px !important;
-        padding-left: 1.1rem;
-    }
-    .navbar-search-input::placeholder { color: rgba(255,255,255,.45); }
-    .navbar-search-input:focus {
-        background: rgba(255,255,255,.18) !important;
-        border-color: var(--pm-cyan) !important;
-        box-shadow: none !important;
-        color: #fff !important;
-    }
-    .navbar-search-btn {
-        background: var(--pm-orange);
-        color: #fff;
-        border: none;
-        border-radius: 0 50px 50px 0 !important;
-        padding: .375rem 1.1rem;
-        transition: background .15s;
-    }
-    .navbar-search-btn:hover { background: #ea6c0a; color: #fff; }
-
     /* Inline user avatar in navbar */
     .nav-avatar {
         width: 30px; height: 30px; font-size: .75rem; flex-shrink: 0;
@@ -74,27 +48,6 @@ $userInitial = strtoupper(substr($_SESSION['name'] ?? 'U', 0, 1));
         </button>
 
         <div class="collapse navbar-collapse" id="navbarMain">
-
-            <!-- Left: Home only -->
-            <ul class="navbar-nav mb-2 mb-lg-0 me-3">
-                <li class="nav-item">
-                    <a class="nav-link" href="<?= $root ?>/index.php">
-                        <i class="bi bi-house me-1"></i>Home
-                    </a>
-                </li>
-            </ul>
-
-            <!-- Centre: pill search bar (no category dropdown) -->
-            <form class="d-flex flex-grow-1 me-3 my-2 my-lg-0" method="GET"
-                  action="<?= $root ?>/search.php">
-                <input type="search" name="keyword" class="form-control navbar-search-input"
-                       placeholder="Search listings…"
-                       value="<?= htmlspecialchars($_GET['keyword'] ?? '') ?>"
-                       aria-label="Search listings">
-                <button class="navbar-search-btn" type="submit" title="Search">
-                    <i class="bi bi-search"></i>
-                </button>
-            </form>
 
             <!-- Right: visible buttons, no dropdown -->
             <ul class="navbar-nav ms-auto align-items-center gap-1 flex-row flex-lg-row">
@@ -157,4 +110,3 @@ $userInitial = strtoupper(substr($_SESSION['name'] ?? 'U', 0, 1));
         </div>
     </div>
 </nav>
-<div class="flex-grow-1">

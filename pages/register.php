@@ -109,7 +109,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                         <p class="text-center small mb-0 text-muted">
                             Already have an account?
-                            <a href="login.php" class="fw-semibold text-navy text-decoration-none">Login here</a>
+                            <a href="login.php" class="fw-semibold text-navy text-decoration-none">Login</a>
                         </p>
 
                     </div>
