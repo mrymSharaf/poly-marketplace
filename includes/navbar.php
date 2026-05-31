@@ -157,3 +157,4 @@ $userInitial = strtoupper(substr($_SESSION['name'] ?? 'U', 0, 1));
         </div>
     </div>
 </nav>
+<div class="flex-grow-1">

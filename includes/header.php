@@ -24,7 +24,7 @@ if (!defined('BASE_URL')) {
             --pm-accent: #2563eb;
             --pm-light:  #f0f7ff;
         }
-        body { background-color: #f4f7fb; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background-color: #f4f7fb; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
 
         /* ── Navbar ── */
         .navbar-pm {
@@ -139,7 +139,7 @@ if (!defined('BASE_URL')) {
         .page-header { background-color: var(--pm-navy); color: #fff; padding: 2rem 0; margin-bottom: 0; }
         .page-header .breadcrumb-item a { text-decoration: none; color: rgba(255,255,255,.6); }
         .page-header .breadcrumb-item + .breadcrumb-item::before { color: rgba(255,255,255,.4); }
-        .page-content { padding-top: 0; }
+        .page-content { padding-top: 2rem; }
         .section-nav { padding-top: 0.6rem !important; margin-bottom: 1rem !important; }
     </style>
 </head>

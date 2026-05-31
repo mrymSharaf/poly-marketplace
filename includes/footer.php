@@ -2,6 +2,8 @@
 $root = "/~u202301956/poly-marketplace";
 ?>
 
+</div>
+
 <!-- Footer gradient divider -->
 <div style="height:3px; background: linear-gradient(90deg, var(--pm-navy) 0%, var(--pm-cyan) 50%, var(--pm-orange) 100%);"></div>
 
