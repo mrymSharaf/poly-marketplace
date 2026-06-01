@@ -1,10 +1,11 @@
 <?php
 require_once 'admin_guard.php';
 require_once '../../config/db.php';
+require_once '../../includes/pagination.php';
 
-$dbc = getDB();
+$dbc     = getDB();
 $message = '';
-$error = '';
+$error   = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_role'])) {
     $userID  = (int)$_POST['user_id'];
@@ -28,9 +29,9 @@ if (isset($_GET['delete'])) {
 $search     = trim($_GET['search'] ?? '');
 $roleFilter = $_GET['role_filter'] ?? 'all';
 $sortBy     = $_GET['sort_by'] ?? 'userid_asc';
-$where  = "1=1";
-$params = [];
-$types  = "";
+$where      = "1=1";
+$params     = [];
+$types      = "";
 
 if ($search !== '') {
     $where   .= " AND (FullName LIKE ? OR Email LIKE ?)";
@@ -45,13 +46,37 @@ if ($roleFilter !== 'all') {
     $types   .= "s";
 }
 $orderMap = [
-    'userid_asc' => "UserID ASC", 'userid_desc' => "UserID DESC",
-    'name_asc'   => "FullName ASC", 'name_desc'  => "FullName DESC",
-    'role_asc'   => "Role ASC",    'role_desc'   => "Role DESC",
+    'userid_asc'  => "UserID ASC",  'userid_desc' => "UserID DESC",
+    'name_asc'    => "FullName ASC", 'name_desc'   => "FullName DESC",
+    'role_asc'    => "Role ASC",     'role_desc'   => "Role DESC",
 ];
 $orderSQL = $orderMap[$sortBy] ?? "UserID ASC";
-$stmt = mysqli_prepare($dbc, "SELECT UserID, FullName, Email, Role FROM pm_users WHERE $where ORDER BY $orderSQL");
-if ($types !== '') mysqli_stmt_bind_param($stmt, $types, ...$params);
+
+// ── Pagination setup ──────────────────────────────────────────────────────────
+$perPage = 10;
+$page    = max(1, (int)($_GET['page'] ?? 1));
+
+// COUNT total matching users
+$countStmt = mysqli_prepare($dbc, "SELECT COUNT(*) AS total FROM pm_users WHERE $where");
+if ($types !== '') mysqli_stmt_bind_param($countStmt, $types, ...$params);
+mysqli_stmt_execute($countStmt);
+$totalRecords = (int)(mysqli_fetch_assoc(mysqli_stmt_get_result($countStmt))['total'] ?? 0);
+$totalPages   = max(1, (int)ceil($totalRecords / $perPage));
+$page         = min($page, $totalPages);
+$offset       = ($page - 1) * $perPage;
+
+// Fetch current page of users
+$dataParams   = $params;
+$dataTypes    = $types . "ii";
+$dataParams[] = $perPage;
+$dataParams[] = $offset;
+
+$stmt = mysqli_prepare($dbc, "SELECT UserID, FullName, Email, Role
+                               FROM pm_users
+                               WHERE $where
+                               ORDER BY $orderSQL
+                               LIMIT ? OFFSET ?");
+if ($dataTypes !== '') mysqli_stmt_bind_param($stmt, $dataTypes, ...$dataParams);
 mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 ?>
@@ -62,7 +87,12 @@ $result = mysqli_stmt_get_result($stmt);
 <div class="page-header pb-3">
     <div class="container">
         <h2 class="fw-bold mb-1"><i class="bi bi-people me-2"></i>Manage Users</h2>
-        <p class="mb-2 opacity-75 small">Assign roles and remove user accounts</p>
+        <p class="mb-2 opacity-75 small">
+            <?= $totalRecords ?> user<?= $totalRecords !== 1 ? 's' : '' ?> found
+            <?php if ($totalPages > 1): ?>
+                &nbsp;&middot;&nbsp; Page <?= $page ?> of <?= $totalPages ?>
+            <?php endif; ?>
+        </p>
         <div class="d-flex gap-2 flex-wrap pt-1">
             <a href="dashboard.php"       class="btn btn-sm btn-outline-light rounded-pill"><i class="bi bi-arrow-left me-1"></i>Dashboard</a>
             <a href="manage_listings.php" class="btn btn-sm btn-outline-light rounded-pill">Listings</a>
@@ -161,7 +191,7 @@ $result = mysqli_stmt_get_result($stmt);
                                 </td>
                                 <td class="pe-4">
                                     <?php if ($user['UserID'] != $_SESSION['user_id']): ?>
-                                        <a href="?delete=<?= $user['UserID'] ?>&search=<?= urlencode($search) ?>&role_filter=<?= $roleFilter ?>&sort_by=<?= $sortBy ?>"
+                                        <a href="?delete=<?= $user['UserID'] ?>&search=<?= urlencode($search) ?>&role_filter=<?= $roleFilter ?>&sort_by=<?= $sortBy ?>&page=<?= $page ?>"
                                            class="btn btn-sm btn-outline-danger"
                                            onclick="return confirm('Delete this user permanently?')">
                                             <i class="bi bi-trash"></i>
@@ -176,6 +206,16 @@ $result = mysqli_stmt_get_result($stmt);
                 </tbody>
             </table>
         </div>
+
+        <?php
+        renderPagination($page, $totalPages, function(int $p) use ($search, $roleFilter, $sortBy): string {
+            $q = ['page' => $p];
+            if ($search !== '')          $q['search']      = $search;
+            if ($roleFilter !== 'all')   $q['role_filter'] = $roleFilter;
+            if ($sortBy !== 'userid_asc') $q['sort_by']    = $sortBy;
+            return '?' . http_build_query($q);
+        });
+        ?>
     </div>
 
 </div>

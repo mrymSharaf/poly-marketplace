@@ -1,28 +1,45 @@
 <?php
 require_once 'admin_guard.php';
 require_once '../../config/db.php';
+require_once '../../includes/pagination.php';
 
-$dbc = getDB();
+$dbc     = getDB();
 $message = '';
 $error   = '';
 
 if (isset($_GET['delete_comment'])) {
-    $commentID = (int)$_GET['delete_comment'];
+    $commentID   = (int)$_GET['delete_comment'];
+    $redirectPage = max(1, (int)($_GET['page'] ?? 1));
     $stmt = mysqli_prepare($dbc, "UPDATE pm_comments SET IsDeleted = 1 WHERE CommentID = ?");
     mysqli_stmt_bind_param($stmt, "i", $commentID);
     mysqli_stmt_execute($stmt) ? $message = "Comment removed." : $error = "DB error.";
-    header("Location: manage_comments.php?msg=" . urlencode($message) . "&err=" . urlencode($error));
+    header("Location: manage_comments.php?msg=" . urlencode($message) . "&err=" . urlencode($error) . "&page=" . $redirectPage);
     exit;
 }
 $message = $_GET['msg'] ?? '';
 $error   = $_GET['err'] ?? '';
 
-$sql = "SELECT c.CommentID, c.Content, c.CreatedAt, l.Title AS ListingTitle, l.ListingID, u.FullName AS CommenterName
+// ── Pagination setup ──────────────────────────────────────────────────────────
+$perPage = 10;
+$page    = max(1, (int)($_GET['page'] ?? 1));
+
+// COUNT total active comments
+$countRow    = mysqli_query($dbc, "SELECT COUNT(*) AS total FROM pm_comments WHERE IsDeleted = 0")->fetch_assoc();
+$totalRecords = (int)($countRow['total'] ?? 0);
+$totalPages   = max(1, (int)ceil($totalRecords / $perPage));
+$page         = min($page, $totalPages);
+$offset       = ($page - 1) * $perPage;
+
+// Fetch current page of comments
+$sql = "SELECT c.CommentID, c.Content, c.CreatedAt,
+               l.Title AS ListingTitle, l.ListingID,
+               u.FullName AS CommenterName
         FROM pm_comments c
         JOIN pm_listings l ON c.ListingID = l.ListingID
-        JOIN pm_users u ON c.UserID = u.UserID
+        JOIN pm_users u    ON c.UserID = u.UserID
         WHERE c.IsDeleted = 0
-        ORDER BY c.CreatedAt DESC";
+        ORDER BY c.CreatedAt DESC
+        LIMIT $perPage OFFSET $offset";
 $comments = mysqli_query($dbc, $sql)->fetch_all(MYSQLI_ASSOC);
 ?>
 
@@ -32,7 +49,12 @@ $comments = mysqli_query($dbc, $sql)->fetch_all(MYSQLI_ASSOC);
 <div class="page-header pb-3">
     <div class="container">
         <h2 class="fw-bold mb-1"><i class="bi bi-chat-dots me-2"></i>Manage Comments</h2>
-        <p class="mb-2 opacity-75 small"><?= count($comments) ?> active comment<?= count($comments) !== 1 ? 's' : '' ?></p>
+        <p class="mb-2 opacity-75 small">
+            <?= $totalRecords ?> active comment<?= $totalRecords !== 1 ? 's' : '' ?>
+            <?php if ($totalPages > 1): ?>
+                &nbsp;&middot;&nbsp; Page <?= $page ?> of <?= $totalPages ?>
+            <?php endif; ?>
+        </p>
         <div class="d-flex gap-2 flex-wrap pt-1">
             <a href="dashboard.php"       class="btn btn-sm btn-outline-light rounded-pill"><i class="bi bi-arrow-left me-1"></i>Dashboard</a>
             <a href="manage_users.php"    class="btn btn-sm btn-outline-light rounded-pill">Users</a>
@@ -94,7 +116,8 @@ $comments = mysqli_query($dbc, $sql)->fetch_all(MYSQLI_ASSOC);
                                 <td class="text-muted small"><?= date('d M Y, H:i', strtotime($row['CreatedAt'])) ?></td>
                                 <td class="pe-4">
                                     <button class="btn btn-sm btn-outline-danger delete-comment-btn"
-                                            data-id="<?= $row['CommentID'] ?>">
+                                            data-id="<?= $row['CommentID'] ?>"
+                                            data-page="<?= $page ?>">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </td>
@@ -104,6 +127,8 @@ $comments = mysqli_query($dbc, $sql)->fetch_all(MYSQLI_ASSOC);
                 </tbody>
             </table>
         </div>
+
+        <?php renderPagination($page, $totalPages, fn($p) => '?page=' . $p); ?>
     </div>
 </div>
 
@@ -127,7 +152,10 @@ $comments = mysqli_query($dbc, $sql)->fetch_all(MYSQLI_ASSOC);
 <script>
 document.querySelectorAll('.delete-comment-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-        document.getElementById('confirmDeleteCommentLink').href = `manage_comments.php?delete_comment=${btn.dataset.id}`;
+        const id   = btn.dataset.id;
+        const page = btn.dataset.page;
+        document.getElementById('confirmDeleteCommentLink').href =
+            `manage_comments.php?delete_comment=${id}&page=${page}`;
         new bootstrap.Modal(document.getElementById('deleteCommentModal')).show();
     });
 });

@@ -2,22 +2,35 @@
 session_start();
 include "../../config/db.php";
 include "../../includes/seller_guard.php";
+include "../../includes/pagination.php";
 
 $pageTitle = 'Creator Dashboard';
-$dbc = getDB();
+$dbc    = getDB();
 $userID = $_SESSION['user_id'];
 
+//Stats (aggregate, no pagination needed)
 $statsResult = mysqli_query($dbc, "SELECT COUNT(*) AS total,
     SUM(Status = 'published') AS published,
     SUM(Status = 'draft') AS drafts
     FROM pm_listings WHERE UserID = '$userID'");
 $stats = mysqli_fetch_assoc($statsResult);
 
+//Pagination for listings table
+$perPage = 10;
+$page    = max(1, (int)($_GET['page'] ?? 1));
+
+$countRow     = mysqli_query($dbc, "SELECT COUNT(*) AS total FROM pm_listings WHERE UserID = '$userID'")->fetch_assoc();
+$totalRecords = (int)($countRow['total'] ?? 0);
+$totalPages   = max(1, (int)ceil($totalRecords / $perPage));
+$page         = min($page, $totalPages);
+$offset       = ($page - 1) * $perPage;
+
 $recentResult = mysqli_query($dbc, "SELECT l.ListingID, l.Title, l.Price, l.Status, l.CreatedAt, c.CategoryName
     FROM pm_listings l
     JOIN pm_categories c ON l.CategoryID = c.CategoryID
     WHERE l.UserID = '$userID'
-    ORDER BY l.CreatedAt DESC LIMIT 5");
+    ORDER BY l.CreatedAt DESC
+    LIMIT $perPage OFFSET $offset");
 $recentListings = [];
 if ($recentResult) {
     while ($row = mysqli_fetch_assoc($recentResult)) $recentListings[] = $row;
@@ -80,16 +93,22 @@ mysqli_close($dbc);
             <i class="bi bi-plus-circle me-2"></i>Create New Listing
         </a>
         <a href="my_listings.php" class="btn btn-outline-navy btn-lg">
-            <i class="bi bi-list-ul me-2"></i>View All Listings
+            <i class="bi bi-list-ul me-2"></i>Manage Listings
         </a>
     </div>
 
-    <!-- Recent listings table -->
+    <!-- Listings table -->
     <div class="card pm-table-card">
-        <div class="card-header bg-white border-0 pt-4 pb-2 px-4">
+        <div class="card-header bg-white border-0 pt-4 pb-2 px-4 d-flex justify-content-between align-items-center">
             <h5 class="fw-bold text-navy mb-0">
-                <i class="bi bi-clock-history me-2"></i>Recent Listings
+                <i class="bi bi-list-ul me-2"></i>My Listings
             </h5>
+            <span class="text-muted small">
+                <?= $totalRecords ?> listing<?= $totalRecords !== 1 ? 's' : '' ?>
+                <?php if ($totalPages > 1): ?>
+                    &nbsp;&middot;&nbsp; Page <?= $page ?> of <?= $totalPages ?>
+                <?php endif; ?>
+            </span>
         </div>
         <div class="card-body p-0">
             <?php if (empty($recentListings)): ?>
@@ -131,7 +150,7 @@ mysqli_close($dbc);
                                             </a>
                                             <form method="POST" action="toggle_status.php" class="d-inline">
                                                 <input type="hidden" name="listing_id" value="<?= $row['ListingID'] ?>">
-                                                <input type="hidden" name="redirect" value="dashboard.php">
+                                                <input type="hidden" name="redirect" value="dashboard.php?page=<?= $page ?>">
                                                 <button type="submit"
                                                     class="btn btn-sm <?= $row['Status'] === 'published' ? 'btn-outline-warning' : 'btn-outline-success' ?>"
                                                     title="<?= $row['Status'] === 'published' ? 'Unpublish' : 'Publish' ?>">
@@ -145,11 +164,9 @@ mysqli_close($dbc);
                         </tbody>
                     </table>
                 </div>
-                <div class="text-end px-4 py-3 border-top">
-                    <a href="my_listings.php" class="btn btn-outline-navy btn-sm rounded-pill px-3">
-                        View all listings <i class="bi bi-arrow-right ms-1"></i>
-                    </a>
-                </div>
+
+                <?php renderPagination($page, $totalPages, fn($p) => '?page=' . $p); ?>
+
             <?php endif; ?>
         </div>
     </div>

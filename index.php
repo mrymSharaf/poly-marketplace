@@ -1,6 +1,7 @@
 <?php
 session_start();
 include "config/db.php";
+include "includes/pagination.php";
 
 mysqli_report(MYSQLI_REPORT_OFF);
 
@@ -9,10 +10,10 @@ $dbc = getDB();
 $keyword    = trim($_GET['keyword'] ?? '');
 $categoryID = (int)($_GET['category_id'] ?? 0);
 $categoryName = '';
-$isFiltered = $keyword !== '' || $categoryID > 0;
+$isFiltered   = $keyword !== '' || $categoryID > 0;
 
 // Categories for quick-filter pills
-$catResult = mysqli_query($dbc, "SELECT CategoryID, CategoryName FROM pm_categories ORDER BY CategoryName");
+$catResult  = mysqli_query($dbc, "SELECT CategoryID, CategoryName FROM pm_categories ORDER BY CategoryName");
 $categories = [];
 while ($cat = mysqli_fetch_assoc($catResult)) {
     $categories[] = $cat;
@@ -33,74 +34,85 @@ $statsResult = mysqli_query($dbc, "SELECT
     (SELECT COUNT(*) FROM pm_users WHERE Role = 'creator') AS totalCreators");
 $stats = mysqli_fetch_assoc($statsResult);
 
-// Build listing query based on search/filter or default latest
+// ── Pagination (filtered views only) ─────────────────────────────────────────
+$perPage      = 10;
+$page         = max(1, (int)($_GET['page'] ?? 1));
+$totalRecords = 0;
+$totalPages   = 1;
 $listingsList = [];
+
 if ($isFiltered) {
+    $conditions = ["l.Status = 'published'"];
+    $params = [];
+    $types  = "";
+
     if ($keyword !== '') {
-        $safeKeyword = mysqli_real_escape_string($dbc, $keyword);
-        $result = mysqli_query($dbc, "CALL SearchListings('$safeKeyword')");
-        if ($result) {
-            while ($row = mysqli_fetch_assoc($result)) {
-                if ($categoryID === 0 || $row['CategoryName'] === $categoryName) {
-                    $listingsList[] = $row;
-                }
-            }
-            mysqli_free_result($result);
-        }
-        while (mysqli_more_results($dbc) && mysqli_next_result($dbc)) {
-            $extra = mysqli_store_result($dbc);
-            if ($extra) mysqli_free_result($extra);
-        }
-        if (!$result) {
-            $likeKeyword = "%" . $safeKeyword . "%";
-            $sql = "SELECT l.ListingID, l.Title, l.Description, l.Price, l.ImageURL, l.CreatedAt,
-                           c.CategoryName, u.FullName AS CreatorName,
-                           COALESCE(AVG(r.RatingValue), 0) AS AverageRating,
-                           COUNT(r.RatingID) AS RatingCount
-                    FROM pm_listings l
-                    JOIN pm_categories c ON l.CategoryID = c.CategoryID
-                    JOIN pm_users u ON l.UserID = u.UserID
-                    LEFT JOIN pm_ratings r ON l.ListingID = r.ListingID
-                    WHERE l.Status = 'published'
-                    AND (l.Title LIKE '$likeKeyword' OR l.Description LIKE '$likeKeyword')";
-            if ($categoryID > 0) $sql .= " AND l.CategoryID = '$categoryID'";
-            $sql .= " GROUP BY l.ListingID, l.Title, l.Description, l.Price, l.ImageURL, l.CreatedAt, c.CategoryName, u.FullName
-                      ORDER BY l.CreatedAt DESC LIMIT 30";
-            $result = mysqli_query($dbc, $sql);
-            if ($result) {
-                while ($row = mysqli_fetch_assoc($result)) $listingsList[] = $row;
-            }
-        }
-    } else {
-        $sql = "SELECT l.ListingID, l.Title, l.Description, l.Price, l.ImageURL, l.CreatedAt,
+        $conditions[] = "(l.Title LIKE ? OR l.Description LIKE ?)";
+        $likeKw   = "%" . $keyword . "%";
+        $params[] = $likeKw;
+        $params[] = $likeKw;
+        $types   .= "ss";
+    }
+    if ($categoryID > 0) {
+        $conditions[] = "l.CategoryID = ?";
+        $params[] = $categoryID;
+        $types   .= "i";
+    }
+    $where = implode(" AND ", $conditions);
+
+    // COUNT total matching records
+    $countSQL  = "SELECT COUNT(DISTINCT l.ListingID) AS total
+                  FROM pm_listings l
+                  JOIN pm_categories c ON l.CategoryID = c.CategoryID
+                  JOIN pm_users u      ON l.UserID = u.UserID
+                  WHERE $where";
+    $countStmt = mysqli_prepare($dbc, $countSQL);
+    if ($types !== '') mysqli_stmt_bind_param($countStmt, $types, ...$params);
+    mysqli_stmt_execute($countStmt);
+    $totalRecords = (int)(mysqli_fetch_assoc(mysqli_stmt_get_result($countStmt))['total'] ?? 0);
+    $totalPages   = max(1, (int)ceil($totalRecords / $perPage));
+    $page         = min($page, $totalPages);
+    $offset       = ($page - 1) * $perPage;
+
+    // Fetch page of listings
+    $dataParams   = $params;
+    $dataTypes    = $types . "ii";
+    $dataParams[] = $perPage;
+    $dataParams[] = $offset;
+
+    $dataSQL = "SELECT l.ListingID, l.Title, l.Description, l.Price, l.ImageURL, l.CreatedAt,
                        c.CategoryName, u.FullName AS CreatorName,
                        COALESCE(AVG(r.RatingValue), 0) AS AverageRating,
-                       COUNT(r.RatingID) AS RatingCount
+                       COUNT(DISTINCT r.RatingID) AS RatingCount
                 FROM pm_listings l
                 JOIN pm_categories c ON l.CategoryID = c.CategoryID
-                JOIN pm_users u ON l.UserID = u.UserID
+                JOIN pm_users u      ON l.UserID = u.UserID
                 LEFT JOIN pm_ratings r ON l.ListingID = r.ListingID
-                WHERE l.Status = 'published' AND l.CategoryID = '$categoryID'
-                GROUP BY l.ListingID, l.Title, l.Description, l.Price, l.ImageURL, l.CreatedAt, c.CategoryName, u.FullName
-                ORDER BY l.CreatedAt DESC LIMIT 30";
-        $result = mysqli_query($dbc, $sql);
-        if ($result) {
-            while ($row = mysqli_fetch_assoc($result)) $listingsList[] = $row;
-        }
-    }
+                WHERE $where
+                GROUP BY l.ListingID, l.Title, l.Description, l.Price,
+                         l.ImageURL, l.CreatedAt, c.CategoryName, u.FullName
+                ORDER BY l.CreatedAt DESC
+                LIMIT ? OFFSET ?";
+    $dataStmt = mysqli_prepare($dbc, $dataSQL);
+    mysqli_stmt_bind_param($dataStmt, $dataTypes, ...$dataParams);
+    mysqli_stmt_execute($dataStmt);
+    $listingsList = mysqli_fetch_all(mysqli_stmt_get_result($dataStmt), MYSQLI_ASSOC);
+
 } else {
-    $sql = "SELECT l.ListingID, l.Title, l.Description, l.Price, l.ImageURL, l.CreatedAt,
-                   c.CategoryName, u.FullName AS CreatorName,
-                   COALESCE(AVG(r.RatingValue), 0) AS AverageRating,
-                   COUNT(r.RatingID) AS RatingCount
-            FROM pm_listings l
-            JOIN pm_categories c ON l.CategoryID = c.CategoryID
-            JOIN pm_users u ON l.UserID = u.UserID
-            LEFT JOIN pm_ratings r ON l.ListingID = r.ListingID
-            WHERE l.Status = 'published'
-            GROUP BY l.ListingID, l.Title, l.Description, l.Price, l.ImageURL, l.CreatedAt, c.CategoryName, u.FullName
-            ORDER BY l.CreatedAt DESC
-            LIMIT 6";
+    // Default homepage: curated "Latest 6" — no pagination needed
+    $sql    = "SELECT l.ListingID, l.Title, l.Description, l.Price, l.ImageURL, l.CreatedAt,
+                      c.CategoryName, u.FullName AS CreatorName,
+                      COALESCE(AVG(r.RatingValue), 0) AS AverageRating,
+                      COUNT(r.RatingID) AS RatingCount
+               FROM pm_listings l
+               JOIN pm_categories c ON l.CategoryID = c.CategoryID
+               JOIN pm_users u      ON l.UserID = u.UserID
+               LEFT JOIN pm_ratings r ON l.ListingID = r.ListingID
+               WHERE l.Status = 'published'
+               GROUP BY l.ListingID, l.Title, l.Description, l.Price,
+                        l.ImageURL, l.CreatedAt, c.CategoryName, u.FullName
+               ORDER BY l.CreatedAt DESC
+               LIMIT 6";
     $result = mysqli_query($dbc, $sql);
     if ($result) {
         while ($row = mysqli_fetch_assoc($result)) $listingsList[] = $row;
@@ -108,6 +120,12 @@ if ($isFiltered) {
 }
 
 mysqli_close($dbc);
+
+function indexPageLink(int $p): string {
+    $q         = $_GET;
+    $q['page'] = $p;
+    return '?' . http_build_query($q);
+}
 ?>
 
 <?php include "includes/header.php"; ?>
@@ -182,17 +200,27 @@ mysqli_close($dbc);
     </div>
 </div>
 
-<!-- ── Latest listings ── -->
+<!-- ── Listings section ── -->
 <main class="container py-5">
 
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <?php if ($keyword !== ''): ?>
                 <h2 class="h4 fw-bold mb-0 text-navy">Results for "<?= htmlspecialchars($keyword) ?>"</h2>
-                <p class="text-muted small mb-0 mt-1"><?= count($listingsList) ?> listing<?= count($listingsList) !== 1 ? 's' : '' ?> found</p>
+                <p class="text-muted small mb-0 mt-1">
+                    <?= $totalRecords ?> listing<?= $totalRecords !== 1 ? 's' : '' ?> found
+                    <?php if ($totalPages > 1): ?>
+                        &nbsp;&middot;&nbsp; Page <?= $page ?> of <?= $totalPages ?>
+                    <?php endif; ?>
+                </p>
             <?php elseif ($categoryID > 0 && $categoryName): ?>
                 <h2 class="h4 fw-bold mb-0 text-navy"><?= htmlspecialchars($categoryName) ?></h2>
-                <p class="text-muted small mb-0 mt-1"><?= count($listingsList) ?> listing<?= count($listingsList) !== 1 ? 's' : '' ?> found</p>
+                <p class="text-muted small mb-0 mt-1">
+                    <?= $totalRecords ?> listing<?= $totalRecords !== 1 ? 's' : '' ?> found
+                    <?php if ($totalPages > 1): ?>
+                        &nbsp;&middot;&nbsp; Page <?= $page ?> of <?= $totalPages ?>
+                    <?php endif; ?>
+                </p>
             <?php else: ?>
                 <h2 class="h4 fw-bold mb-0 text-navy">Latest Listings</h2>
                 <p class="text-muted small mb-0 mt-1">Freshest items from our creators</p>
@@ -282,6 +310,11 @@ mysqli_close($dbc);
                 </div>
             <?php endforeach; ?>
         </div>
+
+        <?php if ($isFiltered): ?>
+            <?php renderPagination($page, $totalPages, 'indexPageLink'); ?>
+        <?php endif; ?>
+
     <?php endif; ?>
 
 </main>
