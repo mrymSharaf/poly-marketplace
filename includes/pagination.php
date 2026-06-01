@@ -1,11 +1,5 @@
 <?php
-/**
- * Renders a Bootstrap 5 pagination bar.
- *
- * @param int      $page       Current page (1-based)
- * @param int      $totalPages Total number of pages
- * @param callable $urlFn      Receives (int $pageNum) and returns the URL string for that page
- */
+
 function renderPagination(int $page, int $totalPages, callable $urlFn): void {
     if ($totalPages <= 1) return;
 
