@@ -1,20 +1,43 @@
 <?php
 require_once 'admin_guard.php';
 require_once '../../config/db.php';
+require_once '../../includes/pagination.php';
 
-$dbc = getDB();
+$dbc          = getDB();
 $message      = $_GET['msg'] ?? '';
 $error        = $_GET['err'] ?? '';
 $statusFilter = $_GET['status'] ?? 'all';
 
-$sql = "SELECT l.ListingID, l.Title, l.Price, l.Status, l.CreatedAt, u.FullName AS CreatorName, c.CategoryName
-        FROM pm_listings l
-        JOIN pm_users u ON l.UserID = u.UserID
-        JOIN pm_categories c ON l.CategoryID = c.CategoryID";
+// ── Pagination setup ──────────────────────────────────────────────────────────
+$perPage = 10;
+$page    = max(1, (int)($_GET['page'] ?? 1));
+
+$whereClause = '';
 if ($statusFilter !== 'all') {
-    $sql .= " WHERE l.Status = '" . mysqli_real_escape_string($dbc, $statusFilter) . "'";
+    $whereClause = " WHERE l.Status = '" . mysqli_real_escape_string($dbc, $statusFilter) . "'";
 }
-$sql .= " ORDER BY l.CreatedAt DESC";
+
+// COUNT total matching records
+$countSQL    = "SELECT COUNT(*) AS total
+                FROM pm_listings l
+                JOIN pm_users u    ON l.UserID = u.UserID
+                JOIN pm_categories c ON l.CategoryID = c.CategoryID
+                $whereClause";
+$countRow    = mysqli_query($dbc, $countSQL)->fetch_assoc();
+$totalRecords = (int)($countRow['total'] ?? 0);
+$totalPages   = max(1, (int)ceil($totalRecords / $perPage));
+$page         = min($page, $totalPages);
+$offset       = ($page - 1) * $perPage;
+
+// Fetch current page of listings
+$sql = "SELECT l.ListingID, l.Title, l.Price, l.Status, l.CreatedAt,
+               u.FullName AS CreatorName, c.CategoryName
+        FROM pm_listings l
+        JOIN pm_users u    ON l.UserID = u.UserID
+        JOIN pm_categories c ON l.CategoryID = c.CategoryID
+        $whereClause
+        ORDER BY l.CreatedAt DESC
+        LIMIT $perPage OFFSET $offset";
 $listings = mysqli_query($dbc, $sql)->fetch_all(MYSQLI_ASSOC);
 ?>
 
@@ -24,19 +47,24 @@ $listings = mysqli_query($dbc, $sql)->fetch_all(MYSQLI_ASSOC);
 <div class="page-header pb-3">
     <div class="container">
         <h2 class="fw-bold mb-1"><i class="bi bi-box-seam me-2"></i>Manage Listings</h2>
-        <p class="mb-2 opacity-75 small"><?= count($listings) ?> listing<?= count($listings) !== 1 ? 's' : '' ?> shown</p>
+        <p class="mb-2 opacity-75 small">
+            <?= $totalRecords ?> listing<?= $totalRecords !== 1 ? 's' : '' ?> shown
+            <?php if ($totalPages > 1): ?>
+                &nbsp;&middot;&nbsp; Page <?= $page ?> of <?= $totalPages ?>
+            <?php endif; ?>
+        </p>
         <div class="d-flex gap-2 flex-wrap align-items-center justify-content-between pt-1">
             <div class="d-flex gap-2 flex-wrap">
-                <a href="dashboard.php"      class="btn btn-sm btn-outline-light rounded-pill"><i class="bi bi-arrow-left me-1"></i>Dashboard</a>
-                <a href="manage_users.php"   class="btn btn-sm btn-outline-light rounded-pill">Users</a>
+                <a href="dashboard.php"       class="btn btn-sm btn-outline-light rounded-pill"><i class="bi bi-arrow-left me-1"></i>Dashboard</a>
+                <a href="manage_users.php"    class="btn btn-sm btn-outline-light rounded-pill">Users</a>
                 <a href="manage_comments.php" class="btn btn-sm btn-outline-light rounded-pill">Comments</a>
-                <a href="reports.php"         class="btn btn-sm btn-outline-light rounded-pill">Reports</a>
+                <a href="reports.php"          class="btn btn-sm btn-outline-light rounded-pill">Reports</a>
             </div>
             <div class="btn-group" role="group">
                 <a href="?status=all"       class="btn btn-sm <?= $statusFilter == 'all'       ? 'btn-light' : 'btn-outline-light' ?>">All</a>
-            <a href="?status=published" class="btn btn-sm <?= $statusFilter == 'published' ? 'btn-light' : 'btn-outline-light' ?>">Published</a>
-            <a href="?status=draft"     class="btn btn-sm <?= $statusFilter == 'draft'     ? 'btn-light' : 'btn-outline-light' ?>">Draft</a>
-            <a href="?status=removed"   class="btn btn-sm <?= $statusFilter == 'removed'   ? 'btn-light' : 'btn-outline-light' ?>">Removed</a>
+                <a href="?status=published" class="btn btn-sm <?= $statusFilter == 'published' ? 'btn-light' : 'btn-outline-light' ?>">Published</a>
+                <a href="?status=draft"     class="btn btn-sm <?= $statusFilter == 'draft'     ? 'btn-light' : 'btn-outline-light' ?>">Draft</a>
+                <a href="?status=removed"   class="btn btn-sm <?= $statusFilter == 'removed'   ? 'btn-light' : 'btn-outline-light' ?>">Removed</a>
             </div>
         </div>
     </div>
@@ -136,6 +164,14 @@ $listings = mysqli_query($dbc, $sql)->fetch_all(MYSQLI_ASSOC);
                 </tbody>
             </table>
         </div>
+
+        <?php
+        renderPagination($page, $totalPages, function(int $p) use ($statusFilter): string {
+            $q = ['page' => $p];
+            if ($statusFilter !== 'all') $q['status'] = $statusFilter;
+            return '?' . http_build_query($q);
+        });
+        ?>
     </div>
 </div>
 
