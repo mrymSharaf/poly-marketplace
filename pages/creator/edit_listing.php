@@ -157,7 +157,7 @@ mysqli_close($dbc);
     </div>
 </div>
 
-<div class="container pb-5">
+<div class="container page-content pb-5">
     <div class="row justify-content-center">
         <div class="col-lg-8">
 

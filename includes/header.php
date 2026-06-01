@@ -126,6 +126,41 @@ if (!defined('BASE_URL')) {
         /* ── Tables ── */
         .pm-table-card { border: none !important; border-radius: 12px !important; box-shadow: 0 2px 10px rgba(26,46,107,.07); overflow: hidden; }
 
+        /* ── Sticky-footer layout ── */
+        main, .page-content { flex-grow: 1; }
+        .page-content { padding-top: 2rem; padding-bottom: 2rem; }
+        footer { margin-top: auto; }
+
+        /* ── Pagination ── */
+        .pagination .page-link {
+            color: var(--pm-navy);
+            border-color: #c5d0e8;
+            font-size: .875rem;
+            padding: .38rem .72rem;
+            border-radius: 8px !important;
+            transition: background .15s, color .15s, border-color .15s;
+        }
+        .pagination .page-item + .page-item { margin-left: 3px; }
+        .pagination .page-item.active .page-link {
+            background-color: var(--pm-navy);
+            border-color: var(--pm-navy);
+            color: #fff;
+            font-weight: 600;
+        }
+        .pagination .page-link:hover,
+        .pagination .page-link:focus {
+            background-color: var(--pm-light);
+            color: var(--pm-blue);
+            border-color: var(--pm-cyan);
+            box-shadow: none;
+        }
+        .pagination .page-item.disabled .page-link {
+            color: #adb5bd;
+            background-color: #f8f9fa;
+            border-color: #dee2e6;
+            pointer-events: none;
+        }
+
         /* ── Footer ── */
         .footer-pm { background-color: var(--pm-navy); }
         .footer-heading { letter-spacing: .05em; }
@@ -139,7 +174,6 @@ if (!defined('BASE_URL')) {
         .page-header { background-color: var(--pm-navy); color: #fff; padding: 2rem 0; margin-bottom: 0; }
         .page-header .breadcrumb-item a { text-decoration: none; color: rgba(255,255,255,.6); }
         .page-header .breadcrumb-item + .breadcrumb-item::before { color: rgba(255,255,255,.4); }
-        .page-content { padding-top: 2rem; }
         .section-nav { padding-top: 0.6rem !important; margin-bottom: 1rem !important; }
     </style>
 </head>
