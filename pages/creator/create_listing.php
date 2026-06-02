@@ -74,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
-    // Media file uploading(Optional Field)
+    // Media file uploading (optional)
     $mediaURL = '';
     if (!empty($_FILES['media']['name'])) {
         $med = handleUpload(
@@ -325,7 +325,6 @@ mysqli_close($dbc);
         if (!pickedImage) {
             clientErrors.push('Please upload a listing image.');
         }
-
         const validImgTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
         const validMediaTypes = ['video/mp4', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'video/webm'];
 

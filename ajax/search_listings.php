@@ -1,6 +1,8 @@
 <?php
 
-require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../config/db.php';
+
+$conn = getDB();
 
 if (!defined('BASE_URL')) {
     define('BASE_URL', '/~u202301956/poly-marketplace');
@@ -10,6 +12,7 @@ $keyword   = trim($_GET['keyword']   ?? '');
 $creator   = trim($_GET['creator']   ?? '');
 $startDate = trim($_GET['startDate'] ?? '');
 $endDate   = trim($_GET['endDate']   ?? '');
+$minRating = (int)($_GET['rating']   ?? 0);
 $sortBy    = trim($_GET['sortBy']    ?? 'newest');
 
 $sortMap = [
@@ -24,17 +27,9 @@ $bindTypes  = '';
 $bindValues = [];
 
 if ($keyword !== '') {
-    if (mb_strlen($keyword) >= 3) {
-        $conditions[] = 'MATCH(l.Title, l.Description) AGAINST (? IN NATURAL LANGUAGE MODE)';
-        $bindValues[] = $keyword;
-        $bindTypes   .= 's';
-    } else {
-        $like         = '%' . $keyword . '%';
-        $conditions[] = '(l.Title LIKE ? OR l.Description LIKE ?)';
-        $bindValues[] = $like;
-        $bindValues[] = $like;
-        $bindTypes   .= 'ss';
-    }
+    $conditions[] = 'MATCH(l.Title, l.Description) AGAINST (?)';
+    $bindValues[] = $keyword;
+    $bindTypes   .= 's';
 }
 
 if ($creator !== '') {
@@ -53,6 +48,11 @@ if ($endDate !== '') {
     $bindValues[] = $endDate . ' 23:59:59';
     $bindTypes   .= 's';
 }
+if ($minRating >= 1 && $minRating <= 5) {
+    $conditions[] = 'COALESCE((SELECT AVG(rr.RatingValue) FROM pm_ratings rr WHERE rr.ListingID = l.ListingID), 0) >= ?';
+    $bindValues[] = $minRating;
+    $bindTypes   .= 'i';
+}
 
 $whereSQL = implode(' AND ', $conditions);
 
@@ -63,6 +63,7 @@ $sql = "
         l.Description,
         l.Price,
         l.ImageURL,
+        l.MediaURL,
         l.CreatedAt,
         c.CategoryName,
         u.FullName          AS CreatorName,
@@ -79,6 +80,7 @@ $sql = "
         l.Description,
         l.Price,
         l.ImageURL,
+        l.MediaURL,
         l.CreatedAt,
         c.CategoryName,
         u.FullName
@@ -90,8 +92,8 @@ $stmt = $conn->prepare($sql);
 
 if ($stmt === false) {
     echo '<div class="col-12"><div class="alert alert-danger">'
-    . 'Query preparation failed: ' . htmlspecialchars($conn->error)
-    . '</div></div>';
+        . 'Query preparation failed: ' . htmlspecialchars($conn->error)
+        . '</div></div>';
     exit;
 }
 
@@ -118,6 +120,7 @@ if ($result->num_rows === 0) {
         $category    = htmlspecialchars($row['CategoryName']);
         $creator     = htmlspecialchars($row['CreatorName']);
         $createdAt   = date('d M Y', strtotime($row['CreatedAt']));
+        $detailsUrl  = htmlspecialchars(BASE_URL . '/details.php?id=' . (int)$row['ListingID']);
 
         $shortDesc = mb_strlen($description) > 130
             ? mb_substr($description, 0, 130) . '…'
@@ -138,11 +141,11 @@ if ($result->num_rows === 0) {
             $starsHtml .= str_repeat('<i class="bi bi-star text-muted opacity-50"></i>', $emptyStars);
 
             $ratingHtml = $starsHtml
-                        . ' <span class="text-muted small">'
-                        . $avgRating . ' (' . $ratingCount . ')</span>';
+                . ' <span class="text-muted small">'
+                . $avgRating . ' (' . $ratingCount . ')</span>';
         } else {
             $ratingHtml = '<span class="text-muted small">'
-                        . '<i class="bi bi-star me-1 opacity-50"></i>No ratings yet</span>';
+                . '<i class="bi bi-star me-1 opacity-50"></i>No ratings yet</span>';
         }
 
         if (!empty($row['ImageURL'])) {
@@ -158,6 +161,22 @@ if ($result->num_rows === 0) {
                         </div>';
         }
 
+        if (!empty($row['MediaURL'])) {
+            $mediaUrl = htmlspecialchars(BASE_URL . '/' . $row['MediaURL']);
+            $mediaHtml = '<div class="small mb-2">
+                            <a href="' . $mediaUrl . '" class="text-primary text-decoration-none me-2" target="_blank">
+                                <i class="bi bi-play-circle me-1"></i>Media
+                            </a>
+                            <a href="' . $mediaUrl . '" class="text-muted text-decoration-none" download>
+                                <i class="bi bi-download me-1"></i>Download
+                            </a>
+                        </div>';
+        } else {
+            $mediaHtml = '<div class="small text-muted mb-2">
+                            <i class="bi bi-play-circle me-1"></i>Media pending
+                        </div>';
+        }
+
         echo '
         <div class="col-sm-6 col-lg-4 listing-card">
             <div class="card card-pm h-100">
@@ -168,16 +187,18 @@ if ($result->num_rows === 0) {
 
                     <!-- Category badge -->
                     <span class="badge bg-primary mb-2 align-self-start">'
-                        . $category .
-                    '</span>
+            . $category .
+            '</span>
 
                     <!-- Title -->
                     <h5 class="card-title fw-semibold mb-1">' . $title . '</h5>
 
                     <!-- Short description -->
                     <p class="card-text text-muted small flex-grow-1 mb-3">'
-                        . $shortDesc .
-                    '</p>
+            . $shortDesc .
+            '</p>
+
+                    ' . $mediaHtml . '
 
                     <!-- Creator + date row -->
                     <div class="d-flex justify-content-between text-muted small mb-2">
@@ -193,8 +214,12 @@ if ($result->num_rows === 0) {
                     <div class="d-flex justify-content-between align-items-center mt-auto pt-2
                                 border-top border-light">
                         <div>' . $ratingHtml . '</div>
-                        <span class="fw-bold text-primary fs-5">BD ' . $price . '</span>
+                        <a href="' . $detailsUrl . '" class="btn btn-sm btn-outline-primary rounded-pill">
+                            View More <i class="bi bi-arrow-right"></i>
+                        </a>
                     </div>
+
+                    <div class="fw-bold text-primary fs-5 mt-2">BD ' . $price . '</div>
 
                 </div><!-- /.card-body -->
             </div><!-- /.card -->
