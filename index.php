@@ -47,11 +47,9 @@ if ($isFiltered) {
     $types  = "";
 
     if ($keyword !== '') {
-        $conditions[] = "(l.Title LIKE ? OR l.Description LIKE ?)";
-        $likeKw   = "%" . $keyword . "%";
-        $params[] = $likeKw;
-        $params[] = $likeKw;
-        $types   .= "ss";
+        $conditions[] = "MATCH(l.Title, l.Description) AGAINST (?)";
+        $params[] = $keyword;
+        $types   .= "s";
     }
     if ($categoryID > 0) {
         $conditions[] = "l.CategoryID = ?";
@@ -80,7 +78,7 @@ if ($isFiltered) {
     $dataParams[] = $perPage;
     $dataParams[] = $offset;
 
-    $dataSQL = "SELECT l.ListingID, l.Title, l.Description, l.Price, l.ImageURL, l.CreatedAt,
+    $dataSQL = "SELECT l.ListingID, l.Title, l.Description, l.Price, l.ImageURL, l.MediaURL, l.CreatedAt,
                        c.CategoryName, u.FullName AS CreatorName,
                        COALESCE(AVG(r.RatingValue), 0) AS AverageRating,
                        COUNT(DISTINCT r.RatingID) AS RatingCount
@@ -90,7 +88,7 @@ if ($isFiltered) {
                 LEFT JOIN pm_ratings r ON l.ListingID = r.ListingID
                 WHERE $where
                 GROUP BY l.ListingID, l.Title, l.Description, l.Price,
-                         l.ImageURL, l.CreatedAt, c.CategoryName, u.FullName
+                         l.ImageURL, l.MediaURL, l.CreatedAt, c.CategoryName, u.FullName
                 ORDER BY l.CreatedAt DESC
                 LIMIT ? OFFSET ?";
     $dataStmt = mysqli_prepare($dbc, $dataSQL);
@@ -100,7 +98,7 @@ if ($isFiltered) {
 
 } else {
     // Default homepage: curated "Latest 6" — no pagination needed
-    $sql    = "SELECT l.ListingID, l.Title, l.Description, l.Price, l.ImageURL, l.CreatedAt,
+    $sql    = "SELECT l.ListingID, l.Title, l.Description, l.Price, l.ImageURL, l.MediaURL, l.CreatedAt,
                       c.CategoryName, u.FullName AS CreatorName,
                       COALESCE(AVG(r.RatingValue), 0) AS AverageRating,
                       COUNT(r.RatingID) AS RatingCount
@@ -110,7 +108,7 @@ if ($isFiltered) {
                LEFT JOIN pm_ratings r ON l.ListingID = r.ListingID
                WHERE l.Status = 'published'
                GROUP BY l.ListingID, l.Title, l.Description, l.Price,
-                        l.ImageURL, l.CreatedAt, c.CategoryName, u.FullName
+                        l.ImageURL, l.MediaURL, l.CreatedAt, c.CategoryName, u.FullName
                ORDER BY l.CreatedAt DESC
                LIMIT 6";
     $result = mysqli_query($dbc, $sql);
@@ -146,12 +144,12 @@ function indexPageLink(int $p): string {
                 </p>
 
                 <!-- Search bar -->
-                <form class="d-flex hero-search justify-content-center mb-4" method="GET" action="index.php">
+                <form class="d-flex hero-search justify-content-center mb-4" method="GET" action="search.php">
                     <?php if ($categoryID > 0): ?>
                         <input type="hidden" name="category_id" value="<?= $categoryID ?>">
                     <?php endif; ?>
                     <input type="search" name="keyword" class="form-control"
-                           placeholder="Search listings…"
+                           placeholder="Search title or description…"
                            value="<?= htmlspecialchars($keyword) ?>"
                            aria-label="Search listings"
                            style="max-width:400px;">
@@ -187,11 +185,11 @@ function indexPageLink(int $p): string {
     <div class="container">
         <div class="d-flex flex-wrap gap-2 py-3 align-items-center">
             <span class="text-muted small fw-semibold me-1">Browse by:</span>
-            <a href="index.php" class="btn category-pill <?= !$isFiltered ? 'btn-navy' : 'btn-outline-navy' ?>">
+            <a href="search.php" class="btn category-pill <?= !$isFiltered ? 'btn-navy' : 'btn-outline-navy' ?>">
                 <i class="bi bi-grid me-1"></i>All
             </a>
             <?php foreach ($categories as $cat): ?>
-                <a href="index.php?<?= $keyword ? 'keyword=' . urlencode($keyword) . '&' : '' ?>category_id=<?= (int)$cat['CategoryID'] ?>"
+                <a href="search.php?<?= $keyword ? 'keyword=' . urlencode($keyword) . '&' : '' ?>category_id=<?= (int)$cat['CategoryID'] ?>"
                    class="btn category-pill <?= $categoryID === (int)$cat['CategoryID'] ? 'btn-navy' : 'btn-outline-navy' ?>">
                     <?= htmlspecialchars($cat['CategoryName']) ?>
                 </a>
@@ -286,6 +284,21 @@ function indexPageLink(int $p): string {
                                 <?= $desc ?>
                             </p>
 
+                            <div class="small mb-2">
+                                <?php if (!empty($row['MediaURL'])): ?>
+                                    <a href="<?= htmlspecialchars($row['MediaURL']) ?>" class="text-navy text-decoration-none me-2" target="_blank">
+                                        <i class="bi bi-play-circle me-1"></i>Media
+                                    </a>
+                                    <a href="<?= htmlspecialchars($row['MediaURL']) ?>" class="text-muted text-decoration-none" download>
+                                        <i class="bi bi-download me-1"></i>Download
+                                    </a>
+                                <?php else: ?>
+                                    <span class="text-muted">
+                                        <i class="bi bi-play-circle me-1"></i>Media pending
+                                    </span>
+                                <?php endif; ?>
+                            </div>
+
                             <div class="mb-2">
                                 <?php for ($i = 1; $i <= 5; $i++): ?>
                                     <i class="bi bi-star<?= $i <= $rating ? '-fill star-icon star-filled' : ' star-icon star-empty' ?>"></i>
@@ -301,7 +314,7 @@ function indexPageLink(int $p): string {
                                     <span class="small text-muted fw-medium">BHD</span>
                                 </span>
                                 <a href="details.php?id=<?= (int)$row['ListingID'] ?>" class="btn-view">
-                                    View <i class="bi bi-arrow-right"></i>
+                                    View More <i class="bi bi-arrow-right"></i>
                                 </a>
                             </div>
 

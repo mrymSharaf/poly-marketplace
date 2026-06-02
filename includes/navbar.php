@@ -51,6 +51,11 @@ $userInitial = strtoupper(substr($_SESSION['name'] ?? 'U', 0, 1));
 
             <!-- Right: visible buttons, no dropdown -->
             <ul class="navbar-nav ms-auto align-items-center gap-1 flex-row flex-lg-row">
+                <li class="nav-item">
+                    <a class="nav-link" href="<?= $root ?>/search.php">
+                        <i class="bi bi-grid me-1"></i>Listings
+                    </a>
+                </li>
 
                 <?php if (isset($_SESSION['user_id'])): ?>
 
